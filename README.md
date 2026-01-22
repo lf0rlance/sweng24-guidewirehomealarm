@@ -5,4 +5,3 @@
 - Avery
 - Lance
 - Maksym
-
