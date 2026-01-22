@@ -2,5 +2,6 @@
 
 ## First Commits
 
-- Avery
-- Lance
+* Avery
+* Lance
+* Thiago
