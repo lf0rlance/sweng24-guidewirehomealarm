@@ -48,7 +48,3 @@ Simply put, we want our project to stand out for usability, sustainability, and 
 - We can use google oauth to implement creating user accounts and keeping them secure. This will be in frontend and backend. It should be pretty simple then in one home to add user accounts with different roles (ie, owner, resident, maybe neighbour role?)
 - We can use firebase for push notifications. This will be in frontend and backend.
 - How we are gonna deploy our backend is what we still are kinda undecided on, but for now it's ok because it's easier to have local backend running during dev time.
-<<<<<<< HEAD
-
-=======
->>>>>>> Avery
