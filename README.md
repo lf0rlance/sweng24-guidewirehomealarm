@@ -5,6 +5,7 @@
 - Avery
 - Lance
 - Kevin
+- Veronika
 
 ## Proposed Framework
 
