@@ -5,3 +5,4 @@
 - Avery
 - Lance
 - Kevin
+- Veronika
