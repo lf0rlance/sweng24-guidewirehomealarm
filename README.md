@@ -4,6 +4,7 @@
 
 - Avery
 - Lance
+- Kevin
 
 ## Proposed Framework
 
