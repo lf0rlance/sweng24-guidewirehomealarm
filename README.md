@@ -4,6 +4,7 @@
 
 - Avery
 - Lance
+- Thiago
 - Kevin
 - Veronika
 
