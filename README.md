@@ -8,6 +8,7 @@
 - Thiago
 - Kevin
 - Veronika
+- Maksym
 
 ## Week 1
 
