@@ -9,6 +9,7 @@
 - Kevin
 - Veronika
 - Maksym
+- Christy
 
 ## Week 1
 
