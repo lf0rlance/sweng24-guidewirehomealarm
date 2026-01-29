@@ -1,37 +1,32 @@
 services:
   backend:
     build: ./backend
+    volumes:
+      - ./backend:/backend
+    working_dir: /backend
     ports:
       - "8080:8080"
-    environment:
-      # example
-      - NODE_ENV=development
-    volumes:
-      - ./backend:/app
-    working_dir: /app
     command: ["sh", "-lc", "npm install && npm run dev"]
 
   frontend:
     build: ./frontend
+    volumes:
+      - ./frontend:/frontend
+    working_dir: /frontend
     ports:
       - "5173:5173"
-    volumes:
-      - ./frontend:/app
-    working_dir: /app
     command: ["sh", "-lc", "npm install && npm run dev -- --host 0.0.0.0"]
 
   microcontroller:
     build:
-      context: ./mcu
+      context: ./microcontroller
       args:
         IDF_VER: release-v5.2
-    working_dir: /work
     volumes:
-      - ./mcu:/work
-      # optional caches to speed rebuilds:
+      - ./microcontroller:/microcontroller
       - espidf_tools:/root/.espressif
       - espidf_ccache:/root/.cache
-    # keep container alive so you can exec into it and run idf.py commands
+    working_dir: /microcontroller
     command: ["bash", "-lc", "sleep infinity"]
 
 volumes:
