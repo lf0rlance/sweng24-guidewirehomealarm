@@ -16,19 +16,15 @@ services:
     ports:
       - "5173:5173"
     command: ["sh", "-lc", "npm install && npm run dev -- --host 0.0.0.0"]
-
-  microcontroller:
+microcontroller:
     build:
       context: ./microcontroller
-      args:
-        IDF_VER: release-v5.2
+      dockerfile: Dockerfile.micropython
     volumes:
       - ./microcontroller:/microcontroller
-      - espidf_tools:/root/.espressif
-      - espidf_ccache:/root/.cache
+      - micropython_pip_cache:/root/.cache/pip
     working_dir: /microcontroller
     command: ["bash", "-lc", "sleep infinity"]
 
 volumes:
-  espidf_tools:
-  espidf_ccache:
+  micropython_pip_cache:
