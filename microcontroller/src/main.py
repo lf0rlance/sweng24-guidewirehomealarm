@@ -15,15 +15,22 @@ else:
         print("WiFi connection failed")
 
 led = machine.Pin(2, machine.Pin.OUT)
-def toggle():
-    while True:
-        led.value(1)
-        time.sleep(1)
-        led.value(0)
-        time.sleep(1)
-
 events = EventManager(device_id="esp32_001")
-events.do("led_toggle", toggle)
+
+# ex for now to test
+led_state = [0]
+last_toggle_time = [0]
+
+def check_toggle():
+    current_time = time.time()
+    if current_time - last_toggle_time[0] >= 1:
+        last_toggle_time[0] = current_time
+        led_state[0] = 1 - led_state[0]
+        led.value(led_state[0])
+        return {"state": "on" if led_state[0] else "off"}
+    return False
+
+events.on("led_toggle", check_toggle)
 
 while True:
     events.check_all()

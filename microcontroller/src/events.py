@@ -7,8 +7,9 @@ class EventManager:
         self.device_id = device_id
         self.event_count = 0
         self.handlers = []
+        self.failed_events = []  
     
-    def send(self, event_type, **kwargs):
+    def send(self, event_type, **kwargs): # no execution, just send data 
         self.event_count += 1
         
         payload = {
@@ -26,9 +27,10 @@ class EventManager:
             return True
         except Exception as e:
             print("Failed to send event: " + str(e))
+            self.failed_events.append(payload)  
             return False
     
-    def do(self, event_type, action, **kwargs):
+    def do(self, event_type, action, **kwargs): # execute function and send 
         result = action() if callable(action) else None
         
         if isinstance(result, dict):
@@ -36,47 +38,31 @@ class EventManager:
         
         return self.send(event_type, **kwargs)
     
-    # This can be used once we are waiting for events to be triggered
-    # register once
-    #   motion = machine.Pin(14, machine.Pin.IN)
-    #   events.on("motion_detected", lambda: motion.value() == 1)
-    # def on(self, event_type, trigger_func, handler_func=None):
-    #     """Register a handler that checks trigger and sends event when activated
-        
-    #     Args:
-    #         event_type: Name of the event to send
-    #         trigger_func: Function that returns True when triggered, or dict with data
-    #         handler_func: Optional function to execute when triggered
-    #     """
-    #     self.handlers.append({
-    #         "event_type": event_type,
-    #         "trigger": trigger_func,
-    #         "handler": handler_func
-    #     })
+    def on(self, event_type, trigger_func, handler_func=None): # auto check
+        self.handlers.append({
+            "event_type": event_type,
+            "trigger": trigger_func,
+            "handler": handler_func
+        })
     
-
-
-    # def check_temp():
-    # temp = sensor.read()
-    # if temp > 30:
-    #     return {"temp": temp, "warning": True}
-    # return False
-
-    # events.on("high_temp", check_temp)
-
-    # def check_all(self):
-    #     """Check all registered handlers and send events for triggered ones"""
-    #     for h in self.handlers:
-    #         result = h["trigger"]()
+    def check_all(self): # check failed and on events
+        # resend failed events 
+        for payload in self.failed_events[:]:
+            try:
+                api.send_status(config.BACKEND_URL, payload)
+                self.failed_events.remove(payload)
+                print("retry success: " + payload["event_type"])
+            except:
+                pass  # keep in queue for next retry
+        
+        for h in self.handlers:
+            result = h["trigger"]()
             
-    #         if result:
-    #             # Execute handler if provided
-    #             if h["handler"]:
-    #                 h["handler"]()
+            if result:
+                if h["handler"]:
+                    h["handler"]()
                 
-    #             # Prepare event data
-    #             data = result if isinstance(result, dict) else {}
+                data = result if isinstance(result, dict) else {}
                 
-    #             # Send event
-    #             self.send(h["event_type"], **data)
+                self.send(h["event_type"], **data)
         
