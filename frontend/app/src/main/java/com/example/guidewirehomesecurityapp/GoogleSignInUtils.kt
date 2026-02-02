@@ -19,6 +19,7 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.tasks.await
+import android.widget.Toast
 
 class GoogleSignInUtils {
     companion object {
@@ -40,20 +41,22 @@ class GoogleSignInUtils {
                             if(result.credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL){
                                 val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(result.credential.data)
                                 val googleTokenId = googleIdTokenCredential.idToken
-                                val authCredential = GoogleAuthProvider.getCredential(googleTokenId,null)
-                                val user = Firebase.auth.signInWithCredential(authCredential).await().user
-                                user?.let {
-                                    if(it.isAnonymous.not()){
+                                BackendAuthService.verifyWithBackend(
+                                    context = context,
+                                    idToken = googleTokenId,
+                                    onSuccess = {
                                         login.invoke()
+                                    },
+                                    onError = {
+                                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                            Toast.makeText(context, "Backend verification failed", Toast.LENGTH_SHORT).show()
+                                        }
+
                                     }
-                                }
+                                )
                             }
                         }
-                        else ->{
-
-                        }
                     }
-
                 }catch (e: NoCredentialException){
                     launcher?.launch(getIntent())
                 }catch (e: GetCredentialException){
