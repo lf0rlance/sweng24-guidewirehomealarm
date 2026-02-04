@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from validate2 import ValidateData
+from app.validate2 import ValidateData
 from typing import List
 import asyncio
 import json

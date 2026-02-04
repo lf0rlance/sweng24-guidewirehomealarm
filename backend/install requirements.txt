@@ -1,0 +1,30 @@
+install requirements:
+python -m pip install -r requirements.txt
+
+run backend:
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 (IP:8000)
+or locally:
+python -m uvicorn app.main:app --reload (localhost:8000)
+
+
+http://localhost/IP:8000/docs/
+
+
+
+
+TEST Event:
+
+$ts = [int](Get-Date -UFormat %s)
+
+$body = @{
+    device_id = "esp32_001"
+    event_type = "door_open"
+    count = 1
+    timestamp = $ts
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Uri http://localhost:8000/events `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body $body
