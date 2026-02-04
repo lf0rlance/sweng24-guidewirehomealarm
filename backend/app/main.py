@@ -2,16 +2,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from app.validate2 import ValidateData
+from app.config import settings
 from typing import List
 import asyncio
 import json
 
 app = FastAPI(title="Home Alarm Backend")
 
-# Add CORS to connect to frontend on diff port
+# Use config for CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -66,5 +67,13 @@ async def stream_events():
 def health():
     return {
         "status": "ok",
-        "service": "backend"
+        "service": "backend",
+        "backend_url": settings.backend_url
+    }
+
+@app.get("/config")
+def get_config():
+    return {
+        "backend_url": settings.backend_url,
+        "stream_endpoint": f"{settings.backend_url}/events/stream"
     }
