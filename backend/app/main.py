@@ -61,3 +61,10 @@ async def stream_events():
             connected_clients.remove(queue)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "service": "backend"
+    }
