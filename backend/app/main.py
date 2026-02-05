@@ -1,13 +1,50 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from contextlib import asynccontextmanager
 from app.validate2 import ValidateData
 from app.config import settings
 from typing import List
 import asyncio
 import json
+import socket
 
-app = FastAPI(title="Home Alarm Backend")
+
+def get_local_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    local_ip = get_local_ip()
+    port = settings.port
+
+    effective_url = settings.backend_url or f"http://{local_ip}:{port}"
+
+    print("================================================")
+    print("🚀 Home Alarm Backend started")
+    print(f"🌐 Network URL: {effective_url}")
+    print(f"🔁 Loopback:    http://127.0.0.1:{port}")
+    print("================================================")
+
+    yield
+
+    # ---- shutdown ----
+    print("🛑 Home Alarm Backend shutting down")
+
+
+app = FastAPI(
+    title="Home Alarm Backend",
+    lifespan=lifespan
+)
+
 
 # Use config for CORS
 app.add_middleware(
