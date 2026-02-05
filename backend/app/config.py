@@ -3,7 +3,7 @@ from typing import List, Optional
 
 class Settings(BaseSettings):
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: int = 5000
 
     allowed_origins: str = "*"
 

@@ -54,13 +54,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Temporary storage
 EVENTS: List[ValidateData] = []
 
 connected_clients: List[asyncio.Queue] = []
 
 
-@app.post("/events")
+@app.post("/api/events")
 def receive_event(event: ValidateData):
     EVENTS.append(event)
 
