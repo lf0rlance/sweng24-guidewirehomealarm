@@ -10,6 +10,15 @@ import json
 import socket
 
 
+#########
+#imports for db connection
+from fastapi import HTTPException
+from app.db.connectToAlarmSystem import connectUserToSystem
+from app.db.connectMCtoAlarmSystem import connectMicroController
+from app.db.connectToAlarmSystem import getCurrentAlarmSystemID
+from app.db.insertIntoDB import insertUserInDB
+
+
 def get_local_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -114,4 +123,67 @@ def get_config():
     return {
         "backend_url": settings.backend_url,
         "stream_endpoint": f"{settings.backend_url}/events/stream"
+    }
+
+############################################################################
+#Integrating db methods
+
+@app.post("/api/pair")
+def pair_user(username: str, system_password: str):
+    success = connectUserToSystem(
+        username=username,
+        system_password=system_password
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail="Pairing failed (invalid password or already paired)"
+        )
+
+    return {
+        "status": "ok",
+        "message": "User paired with alarm system"
+    }
+
+@app.post("/api/microcontroller/connect")
+def connect_microcontroller(username: str, microcontroller_id: int):
+    system_id = getCurrentAlarmSystemID(username)
+
+    if system_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="User is not paired with an alarm system"
+        )
+
+    success = connectMicroController(
+        microControllerId=microcontroller_id,
+        alarmSystemId=system_id
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail="Microcontroller connection failed"
+        )
+
+    return {
+        "status": "ok",
+        "message": "Microcontroller connected",
+        "alarm_system_id": system_id
+    }
+
+@app.post("/api/createUser")
+def create_user(username: str, email: str, password: str, alarm_system_id: int | None = None):
+    insertion = insertUserInDB(username, email, alarm_system_id ,password)
+
+    if not insertion:
+        raise HTTPException(
+            status_code=400,
+            detail="Username or email already exists"
+        )
+
+    return {
+        "status": "ok",
+        "message": "User created"
     }
