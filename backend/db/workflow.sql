@@ -9,18 +9,13 @@ CREATE TABLE user_table (
   password_hash TEXT NOT NULL
 );
 
-
 --Alarm system table
-CREATE TABLE alarm_system (
-  alarm_system_id INT PRIMARY KEY,
+CREATE TABLE alarm_system_table (
+  alarm_system_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   system_password_hash TEXT NOT NULL,
-  armed BOOLEAN NOT NULL DEFAULT FALSE
+  armed BOOLEAN NOT NULL DEFAULT FALSE,
+  paired BOOLEAN NOT NULL DEFAULT FALSE
 );
-
-ALTER TABLE user_table
-ADD FOREIGN KEY (alarm_system_id)
-REFERENCES alarm_system (alarm_system_id)
-ON DELETE SET NULL;
 
 --micro controller table
 CREATE TABLE microcontroller (
@@ -31,4 +26,3 @@ CREATE TABLE microcontroller (
     REFERENCES alarm_system (alarm_system_id)
     ON DELETE CASCADE
 );
-

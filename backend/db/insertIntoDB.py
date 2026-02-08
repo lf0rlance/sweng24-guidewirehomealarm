@@ -1,28 +1,11 @@
-import os
-from pathlib import Path
-
+import connectToDB
 import psycopg2
-from dotenv import load_dotenv
 
 #tuple size has to be at least length = 4
 def insertUserInDB(userInfoTuple: tuple) -> None:
     #establish connection
-    conn = None
+    conn = connectToDB.connectToDB()
     try:
-        #load env variables from backend
-        env_path = Path(__file__).resolve().parents[1] / ".env.example"
-        load_dotenv(env_path)
-        password = os.getenv("DATABASE_PASSWORD")
-        host = os.getenv("DATABASE_HOST")
-
-        conn = psycopg2.connect(
-            database = "alarm_system",
-            user = "postgres",
-            password = password,
-            host = host,
-            port = "5432"
-        )
-
         #create cursor
         cursor = conn.cursor()
 
@@ -37,6 +20,3 @@ def insertUserInDB(userInfoTuple: tuple) -> None:
     finally:
         if conn:
             conn.close()
-    
-testTuple = ("test5", "test5@random.ie", None, "xyz")
-insertUserInDB(testTuple)
