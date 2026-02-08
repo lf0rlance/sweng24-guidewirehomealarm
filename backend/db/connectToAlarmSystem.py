@@ -14,7 +14,7 @@ def getCurrentAlarmSystemID(username: str) -> str | None:
     return currentAlarmSystemID
 
 
-def connectUserToSystem(username: str) -> bool:
+def connectUserToSystem(username: str) -> None:
     systemId = getCurrentAlarmSystemID(username)
 
     if(systemId == None):
@@ -35,10 +35,12 @@ def connectUserToSystem(username: str) -> bool:
         """,
         (systemId, username)
         )
+
+        cursor.execute("UPDATE alarm_system_table SET paired = %s WHERE alarm_system_id = %s", ("T", systemId))
         conn.commit()
 
     else:
         print(f"You are paired already to system {systemId}")
 
 #testing
-connectUserToSystem("luhinm")
+connectUserToSystem("test2")
