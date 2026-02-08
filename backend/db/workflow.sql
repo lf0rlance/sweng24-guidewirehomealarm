@@ -1,8 +1,10 @@
+--database name: alarmy_system 
+
 --User table:
 CREATE TABLE user_table (
-  id INT PRIMARY KEY,
-  username VARCHAR(100) UNIQUE,
-  email VARCHAR(255) UNIQUE,
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  username VARCHAR(100) UNIQUE NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
   alarm_system_id INT,
   password_hash TEXT NOT NULL
 );
@@ -29,3 +31,4 @@ CREATE TABLE microcontroller (
     REFERENCES alarm_system (alarm_system_id)
     ON DELETE CASCADE
 );
+
