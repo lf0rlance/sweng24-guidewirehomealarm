@@ -13,10 +13,9 @@ import socket
 #########
 #imports for db connection
 from fastapi import HTTPException
-from app.db.connectToAlarmSystem import connectUserToSystem
-from app.db.connectMCtoAlarmSystem import connectMicroController
-from app.db.connectToAlarmSystem import getCurrentAlarmSystemID
-from app.db.insertIntoDB import insertUserInDB
+from backend.db.connectToAlarmSystem import connectUserToSystem, getCurrentAlarmSystemID
+from backend.db.connectMCtoAlarmSystem import connectMicroController
+from backend.db.insertIntoDB import insertUserInDB
 
 
 def get_local_ip():
