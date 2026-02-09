@@ -99,6 +99,69 @@ EVENTS: List[ValidateData] = []
 
 connected_clients: List[asyncio.Queue] = []
 
+# FCM tokens for push notifications (device tokens registered by the app)
+fcm_tokens: List[str] = []
+_firebase_initialized = False
+
+
+def _init_firebase_if_needed():
+    global _firebase_initialized
+    if _firebase_initialized:
+        return True
+    if not getattr(settings, "firebase_credentials_path", None) or not settings.firebase_credentials_path:
+        return False
+    try:
+        import firebase_admin
+        from firebase_admin import credentials
+        path = Path(settings.firebase_credentials_path)
+        if not path.is_absolute():
+            path = backend_dir / path
+        if path.exists():
+            cred = credentials.Certificate(str(path))
+            if not firebase_admin._apps:
+                firebase_admin.initialize_app(cred)
+            _firebase_initialized = True
+            return True
+    except Exception as e:
+        print(f"Firebase init failed (push disabled): {e}")
+    return False
+
+
+def _send_push_for_event(event: ValidateData):
+    """Send FCM notification for door_open / door_closed to all registered tokens."""
+    if event.event_type not in ("door_open", "door_closed"):
+        return
+    if not fcm_tokens:
+        return
+    if not _init_firebase_if_needed():
+        return
+    try:
+        from firebase_admin import messaging
+        title = "Door opened" if event.event_type == "door_open" else "Door closed"
+        body = f"{event.device_id}"
+        message = messaging.MulticastMessage(
+            notification=messaging.Notification(title=title, body=body),
+            data={"event_type": event.event_type, "device_id": event.device_id},
+            tokens=fcm_tokens,
+        )
+        messaging.send_each_for_multicast(message)
+    except Exception as e:
+        print(f"FCM send failed: {e}")
+
+
+class RegisterTokenRequest(BaseModel):
+    token: str
+
+
+@app.post("/api/notifications/register")
+def register_fcm_token(req: RegisterTokenRequest):
+    if not req.token or not req.token.strip():
+        raise HTTPException(status_code=400, detail="Missing token")
+    t = req.token.strip()
+    if t not in fcm_tokens:
+        fcm_tokens.append(t)
+    return {"status": "ok", "message": "Token registered"}
+
 
 @app.post("/api/events")
 def receive_event(event: ValidateData):
@@ -107,6 +170,9 @@ def receive_event(event: ValidateData):
     # Push the new event into every connected client's queue
     for queue in connected_clients:
         queue.put_nowait(event.model_dump())
+
+    # Push notification for door open/close
+    _send_push_for_event(event)
 
     return {
         "status": "ok",

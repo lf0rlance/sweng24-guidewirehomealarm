@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     database_password: Optional[str] = None
     database_host: str = "localhost"
 
+    # Push notifications (FCM). Optional: path to Firebase service account JSON.
+    firebase_credentials_path: Optional[str] = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
