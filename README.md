@@ -8,6 +8,8 @@
 - Thiago
 - Kevin
 - Veronika
+- Maksym
+- Christy
 
 ## Week 1
 
@@ -23,6 +25,19 @@ To achieve this, here are some goals/ideas the group has set:
 - Implement extendable features (or proof of concept) such as cameras, facial recognition, and motion detection
 
 Simply put, we want our project to stand out for usability, sustainability, and simplicity, while also providing features that other alarm systems don't. We would like to take the project as far as we can into the competition.
+
+## Week 2
+
+This week we split into teams (frontend, backend, and embedded systems) to begin working on code.
+
+- Worked on ESP32 setup and integration with object oriented code, and will move this week to connect sensors
+- Made backend progress focused on recieving, parsing, and validating JSON from the ESP32 to build communication with the frontend
+- A Docker image was created
+- Worked on documentation such as sprints and the Kanban board
+
+One of the bigger challenges right now is getting everyone on the same page skill wise. We are currently stuck on how we will be running the backend. We understand that for a proof of concept we could run this locally, but we would like this project to be more scalable if possible.
+
+This week we're going to work on getting a working end to end system, even if it's the most basic flow. We will also look into backend servers. In terms of documentation, we will be finishing our first sprint this week, which means we will have a clear set of objectives to have signed off later in the week.
 
 ## Proposed Framework
 
