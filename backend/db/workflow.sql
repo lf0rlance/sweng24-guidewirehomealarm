@@ -23,6 +23,6 @@ CREATE TABLE microcontroller (
   alarm_system_id INT NOT NULL,
   current_state TEXT NOT NULL,
   FOREIGN KEY (alarm_system_id)
-    REFERENCES alarm_system (alarm_system_id)
+    REFERENCES alarm_system_table (alarm_system_id)
     ON DELETE CASCADE
 );
