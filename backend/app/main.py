@@ -13,9 +13,26 @@ import socket
 #########
 #imports for db connection
 from fastapi import HTTPException
-from backend.db.connectToAlarmSystem import connectUserToSystem, getCurrentAlarmSystemID
-from backend.db.connectMCtoAlarmSystem import connectMicroController
-from backend.db.insertIntoDB import insertUserInDB
+import sys
+from pathlib import Path
+
+# Add backend and db directories to path to allow db imports
+backend_dir = Path(__file__).resolve().parent.parent
+db_dir = backend_dir / "db"
+sys.path.insert(0, str(backend_dir))
+sys.path.insert(0, str(db_dir))
+
+from db.connectToAlarmSystem import connectUserToSystem, getCurrentAlarmSystemID
+from db.connectMCtoAlarmSystem import connectMicroController
+from db.insertIntoDB import insertUserInDB
+from db.googleAuth import find_or_create_google_user, find_google_user_only
+
+#########
+#imports for Google OAuth
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+import jwt
+from pydantic import BaseModel
 
 
 def get_local_ip():
@@ -37,15 +54,19 @@ async def lifespan(app: FastAPI):
     effective_url = settings.backend_url or f"http://{local_ip}:{port}"
 
     print("================================================")
-    print("🚀 Home Alarm Backend started")
-    print(f"🌐 Network URL: {effective_url}")
-    print(f"🔁 Loopback:    http://127.0.0.1:{port}")
+    print("Home Alarm Backend started")
+    print(f"Network URL: {effective_url}")
+    print(f"Loopback:    http://127.0.0.1:{port}")
+    for route in app.routes:
+        if hasattr(route, "path") and "/api/auth" in getattr(route, "path", ""):
+            methods = getattr(route, "methods", set()) or set()
+            print(f"  Auth: {', '.join(sorted(methods))} {route.path}")
     print("================================================")
 
     yield
 
     # ---- shutdown ----
-    print("🛑 Home Alarm Backend shutting down")
+    print("Home Alarm Backend shutting down")
 
 
 app = FastAPI(
@@ -61,6 +82,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Auth and ping first so they are always registered ---
+@app.get("/ping")
+def ping():
+    return {"pong": True}
+
+
+@app.get("/api/auth/health")
+def api_auth_health():
+    return {"status": "ok", "auth": "signup,signin,google"}
 
 
 # Temporary storage
@@ -157,7 +188,7 @@ def connect_microcontroller(username: str, microcontroller_id: int):
 
     success = connectMicroController(
         microControllerId=microcontroller_id,
-        alarmSystemId=system_id
+        username=username
     )
 
     if not success:
@@ -186,3 +217,125 @@ def create_user(username: str, email: str, password: str, alarm_system_id: int |
         "status": "ok",
         "message": "User created"
     }
+
+#########
+# Google OAuth endpoints - use a router so /api/auth/* is guaranteed to work
+
+from fastapi import APIRouter
+
+auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+class GoogleAuthRequest(BaseModel):
+    idToken: str
+
+
+def _verify_google_token(id_token_str: str):
+    """Verify Google ID token and return idinfo dict. Raises on failure."""
+    idinfo = id_token.verify_oauth2_token(
+        id_token_str,
+        google_requests.Request(),
+        settings.google_client_id
+    )
+    if idinfo['aud'] != settings.google_client_id:
+        raise ValueError('Could not verify audience.')
+    return idinfo
+
+
+def _user_response(user: dict):
+    """Build JWT and user response for a given user dict."""
+    token = jwt.encode(
+        {"userId": user["id"], "email": user["email"]},
+        settings.jwt_secret,
+        algorithm="HS256"
+    )
+    return {
+        "token": token,
+        "user": {"id": user["id"], "email": user["email"], "name": user["name"]}
+    }
+
+
+@auth_router.get("/health")
+def auth_health():
+    """Verify auth routes are loaded."""
+    return {"status": "ok", "auth": "signup,signin,google"}
+
+
+@auth_router.post("/signup")
+def signup(request: GoogleAuthRequest):
+    """
+    Sign up: verify Google token, create user in DB only if new. If account exists, return error.
+    """
+    if not request.idToken:
+        raise HTTPException(status_code=400, detail="Missing idToken")
+    if not settings.google_client_id or not settings.jwt_secret:
+        raise HTTPException(status_code=500, detail="Auth not configured")
+    try:
+        idinfo = _verify_google_token(request.idToken)
+        google_id = idinfo.get('sub')
+        email = idinfo.get('email')
+        name = idinfo.get('name', (email or '').split('@')[0])
+        if not google_id or not email:
+            raise HTTPException(status_code=401, detail="Invalid Google token: missing user info")
+        # Reject signup if account already exists
+        existing = find_google_user_only(google_id, email, name)
+        if existing:
+            raise HTTPException(status_code=409, detail="Account already exists. Please sign in instead.")
+        try:
+            user = find_or_create_google_user(google_id, email, name)
+        except Exception as db_error:
+            print(f"Database error during signup: {db_error}")
+            raise HTTPException(status_code=503, detail=f"Database error: {str(db_error)}")
+        if not user:
+            raise HTTPException(status_code=500, detail="Failed to create user")
+        return _user_response(user)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Signup error: {e}")
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+
+
+@auth_router.post("/signin")
+def signin(request: GoogleAuthRequest):
+    """
+    Sign in: verify Google token, return JWT only if user already exists in DB.
+    """
+    if not request.idToken:
+        raise HTTPException(status_code=400, detail="Missing idToken")
+    if not settings.google_client_id or not settings.jwt_secret:
+        raise HTTPException(status_code=500, detail="Auth not configured")
+    try:
+        idinfo = _verify_google_token(request.idToken)
+        google_id = idinfo.get('sub')
+        email = idinfo.get('email')
+        name = idinfo.get('name', (email or '').split('@')[0])
+        if not google_id or not email:
+            raise HTTPException(status_code=401, detail="Invalid Google token: missing user info")
+        user = find_google_user_only(google_id, email, name)
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="Account does not exist. Please sign up."
+            )
+        return _user_response(user)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Signin error: {e}")
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+
+
+# Legacy: same behavior as signup
+@auth_router.post("/google")
+def google_auth(request: GoogleAuthRequest):
+    """Verify Google ID token and create/return user with JWT (same as signup)."""
+    return signup(request)
+
+
+# Mount auth router on the main app
+app.include_router(auth_router)

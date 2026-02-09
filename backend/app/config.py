@@ -9,6 +9,14 @@ class Settings(BaseSettings):
 
     # Optional override (only set via .env)
     backend_url: Optional[str] = None
+    
+    # Google OAuth
+    google_client_id: Optional[str] = None
+    jwt_secret: Optional[str] = None
+    
+    # Database
+    database_password: Optional[str] = None
+    database_host: str = "localhost"
 
     model_config = SettingsConfigDict(
         env_file=".env",
