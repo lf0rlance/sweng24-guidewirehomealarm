@@ -23,25 +23,8 @@ from fastapi import FastAPI
 #4)check if event is in event list
 #5)check that the timestamp is not too far away from current moment
 
-received_count = [] 
 
-app = FastAPI()
-
-@app.post("/data")
-def receive_data(data: ValidateData):
-    # Add the count from this request to the array
-    received_count.append(data.count)
-
-def validateCount():
-    count = 1;
-    while count < len(received_count):
-        if received_count[count-1] != count:
-            print("bad")
-
-   
-
-
-#class ValidateData inherits from basemodel by pydantic
+# class ValidateData inherits from basemodel by pydantic (must be defined before use in type hints)
 class ValidateData(BaseModel):
     #use regular expression to check whether string follows format esp32_xxxxxx
     #where x are digits
@@ -65,6 +48,24 @@ class ValidateData(BaseModel):
                 f"timestamp {value} is {abs(now-value)}seconds away from current time stamp.\n Maximum delay allowed is{max_delay}"
             )
         return value
+
+
+received_count = []
+
+app = FastAPI()
+
+
+@app.post("/data")
+def receive_data(data: ValidateData):
+    # Add the count from this request to the array
+    received_count.append(data.count)
+
+
+def validateCount():
+    count = 1
+    while count < len(received_count):
+        if received_count[count - 1] != count:
+            print("bad")
 
 
 # #testing
