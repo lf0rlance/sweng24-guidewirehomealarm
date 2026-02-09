@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1083851660390",
+    "project_id": "guidewire-home-security-app",
+    "storage_bucket": "guidewire-home-security-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1083851660390:android:b1b7294b0a5380d59621a7",
+        "android_client_info": {
+          "package_name": "com.example.guidewirehomesecurityapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1083851660390-0vionldk4si34evdprsu18h9qitbs9mf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.guidewirehomesecurityapp",
+            "certificate_hash": "78141863b8d0fee6537d65740a40d7731e09a779"
+          }
+        },
+        {
+          "client_id": "1083851660390-kpnkaajge3vtt35ijt3a3dmrml74vro4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDE6N4kxx3wk17A1g7gJHpkWspakMQPSd0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1083851660390-kpnkaajge3vtt35ijt3a3dmrml74vro4.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
