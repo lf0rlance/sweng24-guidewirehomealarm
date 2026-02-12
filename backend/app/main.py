@@ -186,3 +186,4 @@ def create_user(username: str, email: str, password: str, alarm_system_id: int |
         "status": "ok",
         "message": "User created"
     }
+

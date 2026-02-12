@@ -1,4 +1,4 @@
---database name: alarmy_system 
+--database name: alarm_system 
 
 --User table:
 CREATE TABLE user_table (
@@ -6,7 +6,9 @@ CREATE TABLE user_table (
   username VARCHAR(100) UNIQUE NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   alarm_system_id INT,
-  password_hash TEXT NOT NULL
+  password_hash TEXT NOT NULL,
+  role VARCHAR(20),
+  CHECK (role IN ('admin', 'user'))
 );
 
 --Alarm system table
