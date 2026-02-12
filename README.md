@@ -26,6 +26,19 @@ To achieve this, here are some goals/ideas the group has set:
 
 Simply put, we want our project to stand out for usability, sustainability, and simplicity, while also providing features that other alarm systems don't. We would like to take the project as far as we can into the competition.
 
+## Week 2
+
+This week we split into teams (frontend, backend, and embedded systems) to begin working on code.
+
+- Worked on ESP32 setup and integration with object oriented code, and will move this week to connect sensors
+- Made backend progress focused on recieving, parsing, and validating JSON from the ESP32 to build communication with the frontend
+- A Docker image was created
+- Worked on documentation such as sprints and the Kanban board
+
+One of the bigger challenges right now is getting everyone on the same page skill wise. We are currently stuck on how we will be running the backend. We understand that for a proof of concept we could run this locally, but we would like this project to be more scalable if possible.
+
+This week we're going to work on getting a working end to end system, even if it's the most basic flow. We will also look into backend servers. In terms of documentation, we will be finishing our first sprint this week, which means we will have a clear set of objectives to have signed off later in the week.
+
 ## Proposed Framework
 
 ![image](Images\Framework_1.0.png)
@@ -37,13 +50,25 @@ Simply put, we want our project to stand out for usability, sustainability, and 
 - For frontend, we will have a web application for Maintenance/Admin and a mobile application for our end users.
 - Finally, scalability needs to be kept in mind for multiple homes with multiple end users and ESP32. Also, good to keep in mind when developing that this security system can be easily integrated into a larger security system (Cameras, sensors etc).
 
+## Repository structure
+
+| Part          | Path         | Tech                    |
+|---------------|--------------|-------------------------|
+| Backend       | `backend/`   | FastAPI, PostgreSQL     |
+| Mobile app    | `frontend/`  | Android (Kotlin, Compose) |
+| Microcontroller | `microcontroller/` | ESP32, MicroPython |
+
+- **Backend:** `cd backend && py run.py` — API at http://127.0.0.1:5000, docs at `/docs`. See `backend/README.md` and `backend/db/README_SETUP.md`.
+- **Frontend:** Android app; open in Android Studio or build with Gradle.
+- **Microcontroller:** ESP32 firmware in `microcontroller/src/`; see `microcontroller/notes.md`.
+
 ## Proposed Tech Stack
 
 | Layer                              |                 Tech                  | Description                                                                                                                                                                                                                                                           |
 | :--------------------------------- | :-----------------------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Middleware (ESP32 Microcontroller) |                ESPHome                | Easy to implement API into our backend thats desgined for the ESP32 and can communicate with the device over wifi                                                                                                                                                     |
-| Backend                            | Nodejs + MongoDB. Python / TypeScript | During Development, easiest to run backend locally. Not fully certain on deploying our backend but our best idea is using a rasberry pi as opposed to a cloud service. We will mostly use python / JavaScript as most of us are comfortable coding in those languages |
-| Frontend                           | React / JavaScript. Koitlin + Gradle. | For admin/maintenance, we can use a simple web application using React and JavaScript. For end users, we can develop an android app using Kotilin (basically typeScript) and build with gradle.                                                                       |
+| Backend                            | FastAPI + PostgreSQL                 | REST API (auth, events, pairing). Run locally; deploy e.g. on Raspberry Pi.                                                                                                                                                                                            |
+| Frontend                           | React / JavaScript. Kotlin + Gradle. | For admin/maintenance, we can use a simple web application using React and JavaScript. For end users, we can develop an android app using Kotlin (basically typeScript) and build with gradle.                                                                       |
 
 ### Other Tech / Notes
 

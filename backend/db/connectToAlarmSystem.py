@@ -43,4 +43,5 @@ def connectUserToSystem(username: str) -> None:
         print(f"You are paired already to system {systemId}")
 
 #testing
-connectUserToSystem("test2")
+if __name__ == "__main__":
+    connectUserToSystem("test2")

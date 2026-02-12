@@ -15,19 +15,29 @@ else:
         print("WiFi connection failed")
 
 led = machine.Pin(2, machine.Pin.OUT)
+reed = machine.Pin(4, machine.Pin.IN, machine.Pin.PULL_UP)
 events = EventManager(device_id="esp32_001")
 
-# ex for now to test
-led_state = [0]
-last_toggle_time = [0]
+# track reed switch state and debounce
+reed_state = reed.value()
+last_reed_change = time.ticks_ms()
+DEBOUNCE_MS = 10
 
 def check_toggle():
-    current_time = time.time()
-    if current_time - last_toggle_time[0] >= 1:
-        last_toggle_time[0] = current_time
-        led_state[0] = 1 - led_state[0]
-        led.value(led_state[0])
-        return {"state": "on" if led_state[0] else "off"}
+    global reed_state, last_reed_change
+    
+    current_time = time.ticks_ms()
+    current_reed = reed.value()
+    
+    # Debounce: only toggle if reed state changed and debounce period passed
+    if current_reed != reed_state and current_time - last_reed_change >= DEBOUNCE_MS:
+        reed_state = current_reed
+        last_reed_change = current_time
+        
+        # Toggle LED when reed switch changes (magnetic contact detected)d
+        led.value(not reed_state)
+        return {"state": "on" if led.value() else "off"}
+    
     return False
 
 events.on("led_toggle", check_toggle)

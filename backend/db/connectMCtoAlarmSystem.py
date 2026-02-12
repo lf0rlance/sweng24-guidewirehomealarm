@@ -26,4 +26,5 @@ def connectMicroController(microControllerId: int , username: str) -> bool:
         print("The system id is none")
         return False
 
-connectMicroController("666", "luhinm")
+if __name__ == "__main__":
+    connectMicroController("666", "luhinm")
