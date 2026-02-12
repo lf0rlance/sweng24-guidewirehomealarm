@@ -27,4 +27,3 @@ def insertUserInDB(userInfoTuple: tuple) -> None:
     finally:
         if conn:
             conn.close()
-
