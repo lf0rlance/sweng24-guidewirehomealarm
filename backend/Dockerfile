@@ -1,11 +1,13 @@
 # Multi-stage build for smaller final image
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /build
 
 # Install dependencies
 COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
+ENV PIP_DEFAULT_TIMEOUT=300
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN pip install --no-cache-dir --retries 10 --timeout 300 -r requirements.txt
 
 # Final stage
 FROM python:3.11-slim
@@ -13,13 +15,14 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copy installed dependencies from builder
-COPY --from=builder /root/.local /root/.local
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY . .
 
-# Make sure scripts in .local are usable
-ENV PATH=/root/.local/bin:$PATH
+# Make sure scripts are usable
+ENV PATH=/usr/local/bin:$PATH
 
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser && \
