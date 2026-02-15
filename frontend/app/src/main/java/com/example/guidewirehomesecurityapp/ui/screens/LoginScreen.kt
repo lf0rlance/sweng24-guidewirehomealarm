@@ -1,6 +1,7 @@
 package com.example.guidewirehomesecurityapp.ui.screens
 
 import com.example.guidewirehomesecurityapp.auth.GoogleSignInUtils
+import com.example.guidewirehomesecurityapp.notifications.AlarmFirebaseMessagingService
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,6 +37,7 @@ fun LoginScreen(
             launcher = null,
             signUp = false,
             onSuccess = {
+                AlarmFirebaseMessagingService.registerTokenAfterLogin(context)
                 Toast.makeText(context, "Login successful", Toast.LENGTH_SHORT).show()
                 onLoginSuccess()
             },
@@ -54,15 +56,16 @@ fun LoginScreen(
         Spacer(Modifier.height(16.dp))
 
         Button(onClick = {
-            GoogleSignInUtils.doGoogleSignIn(
-                context = context,
-                scope = scope,
-                launcher = launcher,
-                signUp = true,
-                onSuccess = {
-                    Toast.makeText(context, "Account created. You're signed in.", Toast.LENGTH_SHORT).show()
-                    onLoginSuccess()
-                },
+        GoogleSignInUtils.doGoogleSignIn(
+            context = context,
+            scope = scope,
+            launcher = launcher,
+            signUp = true,
+            onSuccess = {
+                AlarmFirebaseMessagingService.registerTokenAfterLogin(context)
+                Toast.makeText(context, "Account created. You're signed in.", Toast.LENGTH_SHORT).show()
+                onLoginSuccess()
+            },
                 onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
             )
         }) {
@@ -70,15 +73,16 @@ fun LoginScreen(
         }
         Spacer(Modifier.height(12.dp))
         Button(onClick = {
-            GoogleSignInUtils.doGoogleSignIn(
-                context = context,
-                scope = scope,
-                launcher = launcher,
-                signUp = false,
-                onSuccess = {
-                    Toast.makeText(context, "Login successful", Toast.LENGTH_SHORT).show()
-                    onLoginSuccess()
-                },
+        GoogleSignInUtils.doGoogleSignIn(
+            context = context,
+            scope = scope,
+            launcher = launcher,
+            signUp = false,
+            onSuccess = {
+                AlarmFirebaseMessagingService.registerTokenAfterLogin(context)
+                Toast.makeText(context, "Login successful", Toast.LENGTH_SHORT).show()
+                onLoginSuccess()
+            },
                 onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
             )
         }) {

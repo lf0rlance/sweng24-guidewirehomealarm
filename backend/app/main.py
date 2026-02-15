@@ -1,10 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from contextlib import asynccontextmanager
 from app.validate2 import ValidateData
 from app.config import settings
-from typing import List
+from typing import Dict, List, Set, Tuple
 import asyncio
 import json
 import socket
@@ -22,7 +23,12 @@ db_dir = backend_dir / "db"
 sys.path.insert(0, str(backend_dir))
 sys.path.insert(0, str(db_dir))
 
-from db.connectToAlarmSystem import connectUserToSystem, getCurrentAlarmSystemID
+from db.connectToAlarmSystem import (
+    connectUserToSystem,
+    getCurrentAlarmSystemID,
+    get_alarm_system_id_by_user_id,
+    get_alarm_system_id_by_device_id,
+)
 from db.connectMCtoAlarmSystem import connectMicroController
 from db.insertIntoDB import insertUserInDB
 from db.googleAuth import find_or_create_google_user, find_google_user_only
@@ -94,13 +100,34 @@ def api_auth_health():
     return {"status": "ok", "auth": "signup,signin,google"}
 
 
-# Temporary storage
-EVENTS: List[ValidateData] = []
+# Events stored as (event_dict, alarm_system_id). alarm_system_id is None if device not registered.
+EVENTS: List[Tuple[dict, int | None]] = []
 
-connected_clients: List[asyncio.Queue] = []
+# Each stream client: (queue, alarm_system_id). Events are only pushed to queues with matching alarm_system_id.
+connected_clients: List[Tuple[asyncio.Queue, int | None]] = []
 
-# FCM tokens for push notifications (device tokens registered by the app)
-fcm_tokens: List[str] = []
+security = HTTPBearer(auto_error=False)
+
+
+def get_current_user_id(credentials: HTTPAuthorizationCredentials | None = Depends(security)) -> int:
+    """Decode JWT from Authorization header and return user id. Raises 401 if missing or invalid."""
+    if not credentials or not credentials.credentials:
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization")
+    try:
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.jwt_secret,
+            algorithms=["HS256"],
+        )
+        user_id = payload.get("userId")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return int(user_id)
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+# FCM tokens per alarm_system_id so push is only sent to devices for that system
+fcm_tokens_by_system: Dict[int, Set[str]] = {}
 _firebase_initialized = False
 
 
@@ -127,11 +154,16 @@ def _init_firebase_if_needed():
     return False
 
 
-def _send_push_for_event(event: ValidateData):
-    """Send FCM notification for door_open / door_closed to all registered tokens."""
+def _send_push_for_event(event: ValidateData, alarm_system_id: int | None):
+    """Send FCM notification for door_open / door_closed only to tokens registered for this alarm system."""
     if event.event_type not in ("door_open", "door_closed"):
         return
-    if not fcm_tokens:
+    if alarm_system_id is None:
+        print(f"[FCM] skip push for {event.device_id}: device not linked to any alarm system")
+        return
+    tokens = list(fcm_tokens_by_system.get(alarm_system_id) or [])
+    if not tokens:
+        print(f"[FCM] skip push for alarm_system_id={alarm_system_id} ({event.device_id}): no tokens registered")
         return
     if not _init_firebase_if_needed():
         return
@@ -142,9 +174,10 @@ def _send_push_for_event(event: ValidateData):
         message = messaging.MulticastMessage(
             notification=messaging.Notification(title=title, body=body),
             data={"event_type": event.event_type, "device_id": event.device_id},
-            tokens=fcm_tokens,
+            tokens=tokens,
         )
         messaging.send_each_for_multicast(message)
+        print(f"[FCM] push sent: alarm_system_id={alarm_system_id} {event.event_type} -> {len(tokens)} device(s)")
     except Exception as e:
         print(f"FCM send failed: {e}")
 
@@ -154,25 +187,60 @@ class RegisterTokenRequest(BaseModel):
 
 
 @app.post("/api/notifications/register")
-def register_fcm_token(req: RegisterTokenRequest):
+def register_fcm_token(req: RegisterTokenRequest, user_id: int = Depends(get_current_user_id)):
+    """Register FCM token for the authenticated user's alarm system. Requires Authorization Bearer."""
     if not req.token or not req.token.strip():
         raise HTTPException(status_code=400, detail="Missing token")
     t = req.token.strip()
-    if t not in fcm_tokens:
-        fcm_tokens.append(t)
-    return {"status": "ok", "message": "Token registered"}
+    alarm_system_id = get_alarm_system_id_by_user_id(user_id)
+    if alarm_system_id is None:
+        print(f"[FCM] user_id={user_id} has no alarm_system_id; token not stored")
+        return {"status": "ok", "message": "Token not associated (user not paired with a system)"}
+    # Remove token from any other system (e.g. re-register after login on same device)
+    for sid, tokens in list(fcm_tokens_by_system.items()):
+        tokens.discard(t)
+    for sid in list(fcm_tokens_by_system.keys()):
+        if not fcm_tokens_by_system[sid]:
+            del fcm_tokens_by_system[sid]
+    fcm_tokens_by_system.setdefault(alarm_system_id, set()).add(t)
+    print(f"[FCM] token registered: user_id={user_id} -> alarm_system_id={alarm_system_id} (tokens for this system: {len(fcm_tokens_by_system[alarm_system_id])})")
+    return {"status": "ok", "message": "Token registered for your alarm system"}
+
+
+@app.get("/api/notifications/debug")
+def debug_fcm_tokens():
+    """Debug: list FCM tokens and device->system mapping so you can see why esp32_222 might go to wrong user."""
+    # Which alarm_system_id does each test device map to?
+    device_to_system = {
+        "esp32_111": get_alarm_system_id_by_device_id("esp32_111"),
+        "esp32_222": get_alarm_system_id_by_device_id("esp32_222"),
+    }
+    out = {}
+    for sid, tokens in fcm_tokens_by_system.items():
+        out[int(sid)] = {
+            "count": len(tokens),
+            "token_previews": [t[-8:] if len(t) >= 8 else "..." for t in sorted(tokens)],
+        }
+    return {
+        "device_to_alarm_system": device_to_system,
+        "fcm_tokens_by_system": out,
+    }
 
 
 @app.post("/api/events")
 def receive_event(event: ValidateData):
-    EVENTS.append(event)
+    # Associate event with alarm system by device_id (esp32_xxxxx -> microcontroller lookup)
+    alarm_system_id = get_alarm_system_id_by_device_id(event.device_id)
+    event_dict = event.model_dump()
+    EVENTS.append((event_dict, alarm_system_id))
 
-    # Push the new event into every connected client's queue
-    for queue in connected_clients:
-        queue.put_nowait(event.model_dump())
+    # Push only to stream clients that belong to this alarm system
+    for queue, client_system_id in connected_clients:
+        if client_system_id is not None and client_system_id == alarm_system_id:
+            queue.put_nowait(event_dict)
 
-    # Push notification for door open/close
-    _send_push_for_event(event)
+    # Push notification only to tokens registered for this event's alarm system
+    _send_push_for_event(event, alarm_system_id)
 
     return {
         "status": "ok",
@@ -181,28 +249,36 @@ def receive_event(event: ValidateData):
 
 
 @app.get("/events")
-def get_events():
-    return EVENTS
+def get_events(user_id: int = Depends(get_current_user_id)):
+    """Return events for the authenticated user's alarm system only."""
+    alarm_system_id = get_alarm_system_id_by_user_id(user_id)
+    if alarm_system_id is None:
+        return []  # User not paired with a system; show no events
+    return [
+        event_dict
+        for event_dict, sid in EVENTS
+        if sid == alarm_system_id
+    ]
 
 
 @app.get("/events/stream")
-async def stream_events():
-    # Each client that connects gets its own queue
+async def stream_events(user_id: int = Depends(get_current_user_id)):
+    """SSE stream of events for the authenticated user's alarm system only."""
+    alarm_system_id = get_alarm_system_id_by_user_id(user_id)
     queue: asyncio.Queue = asyncio.Queue()
-    connected_clients.append(queue)
+    entry = (queue, alarm_system_id)
+    connected_clients.append(entry)
 
     async def event_generator():
         try:
             while True:
-                # Wait for the next event to appear in this client's queue
                 event = await queue.get()
-                # SSE format: "data: <json>\n\n"
                 yield f"data: {json.dumps(event)}\n\n"
         except asyncio.CancelledError:
             pass
         finally:
-            # Client disconnected — clean up their queue
-            connected_clients.remove(queue)
+            if entry in connected_clients:
+                connected_clients.remove(entry)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -284,8 +360,6 @@ def create_user(username: str, email: str, password: str, alarm_system_id: int |
         "message": "User created"
     }
 
-<<<<<<< HEAD
-=======
 #########
 # Google OAuth endpoints - use a router so /api/auth/* is guaranteed to work
 
@@ -407,4 +481,3 @@ def google_auth(request: GoogleAuthRequest):
 
 # Mount auth router on the main app
 app.include_router(auth_router)
->>>>>>> b17c1d96c94f42a75b5950b4d7ced8e0a8195c63

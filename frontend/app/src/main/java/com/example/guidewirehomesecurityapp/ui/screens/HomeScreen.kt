@@ -55,17 +55,26 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                 else -> permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+        // Register FCM token for this device with current user's alarm system (and re-register periodically so it stays correct)
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (task.isSuccessful) task.result?.let { AlarmFirebaseMessagingService.registerTokenWithBackend(it) }
+            if (task.isSuccessful) task.result?.let { AlarmFirebaseMessagingService.registerTokenWithBackend(context, it) }
         }
     }
 
     LaunchedEffect(lifecycleOwner) {
+        var tick = 0
         while (true) {
             events = withContext(Dispatchers.IO) {
-                EventService.getEvents()
+                EventService.getEvents(context)
             }
             delay(3000)
+            tick++
+            // Re-register FCM token every ~30s so this device stays linked to the currently logged-in user's system
+            if (tick % 10 == 0) {
+                FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                    if (task.isSuccessful) task.result?.let { AlarmFirebaseMessagingService.registerTokenWithBackend(context, it) }
+                }
+            }
         }
     }
 
