@@ -12,7 +12,6 @@ def getModeBySysId(alarm_system_id: int) -> bool | None:
         print("Couldnt connect")
         return None
     else:
-
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT armed FROM alarm_system_table WHERE alarm_system_id = %s;", (alarm_system_id,))
