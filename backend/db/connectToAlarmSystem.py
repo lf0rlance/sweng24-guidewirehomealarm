@@ -1,6 +1,6 @@
-import connectToDB
+from db import connectToDB
 import psycopg2
-import addAvailableSystems
+from db import addAvailableSystems
 
 def getCurrentAlarmSystemID(username: str) -> str | None:
     conn = connectToDB.connectToDB()

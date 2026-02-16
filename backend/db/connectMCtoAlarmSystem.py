@@ -1,6 +1,6 @@
 import psycopg2
-import connectToDB
-import connectToAlarmSystem
+from db import connectToDB
+from db import connectToAlarmSystem
 
 def connectMicroController(microControllerId: int , username: str) -> bool:
     conn = connectToDB.connectToDB()

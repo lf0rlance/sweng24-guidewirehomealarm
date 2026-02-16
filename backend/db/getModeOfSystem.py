@@ -1,4 +1,4 @@
-import connectToDB
+from db import connectToDB
 import psycopg2
 #import method for finding system id by username
 import connectToAlarmSystem
