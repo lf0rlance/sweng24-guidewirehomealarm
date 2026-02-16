@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi import APIRouter
 from contextlib import asynccontextmanager
 from app.validate2 import ValidateData
 from app.config import settings
@@ -284,16 +285,12 @@ def create_user(username: str, email: str, password: str, alarm_system_id: int |
         "message": "User created"
     }
 
-<<<<<<< HEAD
-=======
 #########
 # Google OAuth endpoints - use a router so /api/auth/* is guaranteed to work
 
-from fastapi import APIRouter
+
 
 auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-
 class GoogleAuthRequest(BaseModel):
     idToken: str
 
@@ -407,4 +404,3 @@ def google_auth(request: GoogleAuthRequest):
 
 # Mount auth router on the main app
 app.include_router(auth_router)
->>>>>>> b17c1d96c94f42a75b5950b4d7ced8e0a8195c63
