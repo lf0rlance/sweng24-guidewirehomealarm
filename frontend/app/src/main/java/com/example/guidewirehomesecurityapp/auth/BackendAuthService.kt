@@ -3,12 +3,12 @@ package com.example.guidewirehomesecurityapp.auth
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.guidewirehomesecurityapp.BuildConfig
+import kotlin.concurrent.thread
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import kotlin.concurrent.thread
 
 private const val PREFS_NAME = "auth_prefs"
 private const val KEY_JWT = "jwt"

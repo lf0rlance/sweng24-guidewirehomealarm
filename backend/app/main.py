@@ -1,23 +1,24 @@
-from fastapi import FastAPI, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from contextlib import asynccontextmanager
-from app.validate2 import ValidateData
-from app.config import settings
-from typing import Dict, List, Set, Tuple
 import asyncio
 import json
 import socket
-
-
-#########
-#imports for db connection
-from fastapi import HTTPException
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Dict, List, Set, Tuple
 
-# Add backend and db directories to path to allow db imports
+from fastapi import APIRouter, FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+import jwt
+from pydantic import BaseModel
+
+from app.config import settings
+from app.validate2 import ValidateData
+
+# Add backend and db to path for db imports
 backend_dir = Path(__file__).resolve().parent.parent
 db_dir = backend_dir / "db"
 sys.path.insert(0, str(backend_dir))
@@ -32,13 +33,6 @@ from db.connectToAlarmSystem import (
 from db.connectMCtoAlarmSystem import connectMicroController
 from db.insertIntoDB import insertUserInDB
 from db.googleAuth import find_or_create_google_user, find_google_user_only
-
-#########
-#imports for Google OAuth
-from google.auth.transport import requests as google_requests
-from google.oauth2 import id_token
-import jwt
-from pydantic import BaseModel
 
 
 def get_local_ip():
@@ -360,11 +354,7 @@ def create_user(username: str, email: str, password: str, alarm_system_id: int |
         "message": "User created"
     }
 
-#########
-# Google OAuth endpoints - use a router so /api/auth/* is guaranteed to work
-
-from fastapi import APIRouter
-
+# Google OAuth endpoints (router so /api/auth/* is registered)
 auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 

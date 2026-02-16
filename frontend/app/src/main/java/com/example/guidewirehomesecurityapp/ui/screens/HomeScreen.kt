@@ -4,29 +4,40 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.guidewirehomesecurityapp.api.EventService
 import com.example.guidewirehomesecurityapp.api.SensorEvent
@@ -35,18 +46,35 @@ import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+
+sealed class HomeTab(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    data object Home : HomeTab("Home", Icons.Filled.Home)
+    data object Control : HomeTab("Control", Icons.Filled.Lock)
+    data object History : HomeTab("History", Icons.Filled.History)
+    data object Eco : HomeTab("Eco", Icons.Filled.Eco)
+    data object Settings : HomeTab("Settings", Icons.Filled.Settings)
+}
+
+private val homeTabs = listOf(
+    HomeTab.Home,
+    HomeTab.Control,
+    HomeTab.History,
+    HomeTab.Eco,
+    HomeTab.Settings
+)
 
 @Composable
-fun HomeScreen(modifier: Modifier = Modifier) {
-    var events by remember { mutableStateOf<List<SensorEvent>>(emptyList()) }
-    val lifecycleOwner = LocalLifecycleOwner.current
+fun HomeScreen(
+    modifier: Modifier = Modifier,
+    onSignOut: () -> Unit = {}
+) {
+    var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
+    var events by mutableStateOf<List<SensorEvent>>(emptyList())
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* result not needed for FCM registration */ }
+    ) { }
 
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= 33) {
@@ -55,81 +83,95 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                 else -> permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
-        // Register FCM token for this device with current user's alarm system (and re-register periodically so it stays correct)
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (task.isSuccessful) task.result?.let { AlarmFirebaseMessagingService.registerTokenWithBackend(context, it) }
+            if (task.isSuccessful) task.result?.let {
+                AlarmFirebaseMessagingService.registerTokenWithBackend(context, it)
+            }
         }
     }
 
     LaunchedEffect(lifecycleOwner) {
         var tick = 0
         while (true) {
-            events = withContext(Dispatchers.IO) {
-                EventService.getEvents(context)
-            }
+            events = withContext(Dispatchers.IO) { EventService.getEvents(context) }
             delay(3000)
             tick++
-            // Re-register FCM token every ~30s so this device stays linked to the currently logged-in user's system
             if (tick % 10 == 0) {
                 FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                    if (task.isSuccessful) task.result?.let { AlarmFirebaseMessagingService.registerTokenWithBackend(context, it) }
+                    if (task.isSuccessful) task.result?.let {
+                        AlarmFirebaseMessagingService.registerTokenWithBackend(context, it)
+                    }
                 }
             }
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp)
-    ) {
-        if (events.isEmpty()) {
-            Text(
-                text = "No sensor events yet. Open/close a door on your ESP32 to see events here.",
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.align(Alignment.Center)
-            )
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    Text(
-                        text = "Sensor events",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(bottom = 8.dp)
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        bottomBar = {
+            NavigationBar {
+                homeTabs.forEachIndexed { index, tab ->
+                    NavigationBarItem(
+                        selected = selectedIndex == index,
+                        onClick = { selectedIndex = index },
+                        icon = { Icon(imageVector = tab.icon, contentDescription = tab.title) },
+                        label = { Text(tab.title) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                        )
                     )
                 }
-                items(events.reversed()) { event ->
-                    EventCard(event = event)
+            }
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f),
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                        ),
+                        start = Offset(0f, 0f),
+                        end = Offset(1000f, 1200f)
+                    )
+                )
+        ) {
+            AnimatedContent(
+                targetState = selectedIndex,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(220)) togetherWith
+                        fadeOut(animationSpec = tween(220))
+                },
+                label = "tab_transition"
+            ) { index ->
+                when (homeTabs[index]) {
+                    HomeTab.Home -> HomeDashboardScreen(
+                        modifier = Modifier.padding(innerPadding),
+                        recentEvents = events,
+                        onNavigateToControl = { selectedIndex = homeTabs.indexOf(HomeTab.Control) },
+                        onNavigateToHistory = { selectedIndex = homeTabs.indexOf(HomeTab.History) },
+                        onNavigateToSustainability = { selectedIndex = homeTabs.indexOf(HomeTab.Eco) },
+                        onNavigateToSettings = { selectedIndex = homeTabs.indexOf(HomeTab.Settings) }
+                    )
+                    HomeTab.Control -> ControlSecurityScreen(modifier = Modifier.padding(innerPadding))
+                    HomeTab.History -> SensorHistoryScreen(
+                        modifier = Modifier.padding(innerPadding),
+                        events = events
+                    )
+                    HomeTab.Eco -> SustainabilityScreen(modifier = Modifier.padding(innerPadding))
+                    HomeTab.Settings -> SettingsScreen(
+                        modifier = Modifier.padding(innerPadding),
+                        onSignOut = onSignOut
+                    )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun EventCard(event: SensorEvent) {
-    val timeStr = try {
-        val date = Date((event.timestamp * 1000).toLong())
-        SimpleDateFormat("MMM d, HH:mm:ss", Locale.getDefault()).format(date)
-    } catch (_: Exception) {
-        "—"
-    }
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = event.displayType(),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(12.dp)
-        )
-        Text(
-            text = "${event.device_id} · $timeStr",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(start = 12.dp, top = 0.dp, end = 12.dp, bottom = 12.dp),
-            fontSize = 12.sp
-        )
     }
 }
