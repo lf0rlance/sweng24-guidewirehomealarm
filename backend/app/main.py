@@ -284,6 +284,8 @@ def create_user(username: str, email: str, password: str, alarm_system_id: int |
         "message": "User created"
     }
 
+<<<<<<< HEAD
+=======
 #########
 # Google OAuth endpoints - use a router so /api/auth/* is guaranteed to work
 
@@ -405,3 +407,4 @@ def google_auth(request: GoogleAuthRequest):
 
 # Mount auth router on the main app
 app.include_router(auth_router)
+>>>>>>> b17c1d96c94f42a75b5950b4d7ced8e0a8195c63

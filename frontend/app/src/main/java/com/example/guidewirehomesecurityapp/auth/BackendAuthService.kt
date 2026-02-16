@@ -54,9 +54,12 @@ object BackendAuthService {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    onError("Network error: ${e.message}")
+                val message = when {
+                    e is java.net.SocketTimeoutException || e is java.net.ConnectException ->
+                        "Can't reach server. If using a physical device, set API_BASE_URL in frontend/local.properties to your PC's IP (e.g. http://192.168.0.x:5000/api/). 10.0.2.2 only works on the emulator."
+                    else -> "Network error: ${e.message}"
                 }
+                android.os.Handler(android.os.Looper.getMainLooper()).post { onError(message) }
             }
         }
     }
