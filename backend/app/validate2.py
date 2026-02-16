@@ -67,9 +67,8 @@ def validateCount():
         if received_count[count - 1] != count:
             print("bad")
 
-
-# #testing
-# try:    
-#     data = ValidateData(device_id = "", event_type="door_opesn",count = 0, timestamp=1400)
+# try:
+#     now = int(time.time())
+#     data = ValidateData(device_id = "esp32_ahahahha", event_type=  "door_open", count=1, timestamp=now)
 # except ValidationError as e:
 #     print(e)
