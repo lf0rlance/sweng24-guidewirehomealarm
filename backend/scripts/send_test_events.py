@@ -4,7 +4,7 @@ Run with backend running: py run.py (from backend folder).
 
 Usage (from repo root):
   py backend/scripts/send_test_events.py
-  py backend/scripts/send_test_events.py --base http://127.0.0.1:5000
+  py backend/scripts/send_test_events.py --base http://127.0.0.1:8000
 
 From backend folder:
   py scripts/send_test_events.py
@@ -16,7 +16,7 @@ import urllib.request
 import urllib.error
 
 EVENT_TYPES = ["door_open", "door_closed", "alarm_enabled", "alarm_disabled"]
-DEFAULT_BASE = "http://127.0.0.1:5000"
+DEFAULT_BASE = "http://127.0.0.1:8000"
 
 
 def send_event(base_url: str, device_id: str, event_type: str, count: int) -> bool:

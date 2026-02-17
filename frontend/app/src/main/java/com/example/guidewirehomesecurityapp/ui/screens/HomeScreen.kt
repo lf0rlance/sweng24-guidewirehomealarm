@@ -38,9 +38,14 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.material3.Button
+
 
 @Composable
-fun HomeScreen(modifier: Modifier = Modifier) {
+fun HomeScreen(
+    modifier: Modifier = Modifier,
+    onNavigateToEnergy: () -> Unit)
+{
     var events by remember { mutableStateOf<List<SensorEvent>>(emptyList()) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
@@ -84,6 +89,15 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                item {
+                    Button(
+                        onClick = onNavigateToEnergy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("View Energy Usage")
+                    }
+                }
+
                 item {
                     Text(
                         text = "Sensor events",

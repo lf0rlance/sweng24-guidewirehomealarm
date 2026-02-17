@@ -13,26 +13,45 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.guidewirehomesecurityapp.ui.screens.HomeScreen
 import com.example.guidewirehomesecurityapp.ui.screens.LoginScreen
+import androidx.compose.runtime.*
+import com.example.guidewirehomesecurityapp.ui.screens.EnergyScreen
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        var isLoggedIn by mutableStateOf(false)
-
         setContent {
+
+            var currentScreen by remember { mutableStateOf("login") }
+
             Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                if (isLoggedIn) {
-                    HomeScreen(modifier = Modifier.padding(innerPadding))
-                } else {
-                    LoginScreen(
-                        modifier = Modifier.padding(innerPadding),
-                        onLoginSuccess = { isLoggedIn = true }
-                    )
+
+                when (currentScreen) {
+
+                    "login" -> {
+                        LoginScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            onLoginSuccess = { currentScreen = "home" }
+                        )
+                    }
+
+                    "home" -> {
+                        HomeScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            onNavigateToEnergy = { currentScreen = "energy" }
+                        )
+                    }
+
+                    "energy" -> {
+                        EnergyScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            onBack = { currentScreen = "home" }
+                        )
+                    }
                 }
             }
         }
     }
 }
-
