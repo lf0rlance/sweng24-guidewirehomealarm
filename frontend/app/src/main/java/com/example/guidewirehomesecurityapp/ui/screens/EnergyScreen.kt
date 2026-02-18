@@ -8,6 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.example.guidewirehomesecurityapp.api.EventService
 import com.example.guidewirehomesecurityapp.api.SensorEvent
 import kotlinx.coroutines.Dispatchers
@@ -30,12 +31,12 @@ fun EnergyScreen(
     val energyPerEventWh = 0.002       // Small additional energy per triggered event
     val co2PerKwh = 0.4                // kg CO2 per kWh (average grid estimate)
     val traditionalMonthlyKwh = 35.0   // Average DVR-based system monthly usage
-
+    val context = LocalContext.current
     // Fetch events continuously
     LaunchedEffect(Unit) {
         while (true) {
             events = withContext(Dispatchers.IO) {
-                EventService.getEvents()
+                EventService.getEvents(context)  // <-- add context here
             }
 
             if (events.isNotEmpty() && firstEventTimestamp == null) {
@@ -245,4 +246,3 @@ private fun BarRow(
         }
     }
 }
-

@@ -16,7 +16,11 @@ import urllib.request
 import urllib.error
 
 EVENT_TYPES = ["door_open", "door_closed", "alarm_enabled", "alarm_disabled"]
-DEFAULT_BASE = "http://127.0.0.1:8000"
+
+DEFAULT_BASE = "http://127.0.0.1:5000"
+# Match setup_two_test_accounts.py: account 1 -> 111, account 2 -> 222
+DEVICE_ACCOUNT_1 = "esp32_111"
+DEVICE_ACCOUNT_2 = "esp32_222"
 
 
 def send_event(base_url: str, device_id: str, event_type: str, count: int) -> bool:
@@ -62,10 +66,23 @@ def main():
         action="store_true",
         help="Send one event and exit (default: send a few in sequence)",
     )
+    parser.add_argument(
+        "--both",
+        action="store_true",
+        help="Send one event to each test account (esp32_111 and esp32_222). Use after setup_two_test_accounts.py",
+    )
     args = parser.parse_args()
 
     base = args.base.rstrip("/")
     device_id = args.device
+
+    if args.both:
+        ok1 = send_event(base, DEVICE_ACCOUNT_1, "door_open", 1)
+        ok2 = send_event(base, DEVICE_ACCOUNT_2, "door_closed", 1)
+        print(f"  {DEVICE_ACCOUNT_1} door_open -> {'ok' if ok1 else 'FAILED'}")
+        print(f"  {DEVICE_ACCOUNT_2} door_closed -> {'ok' if ok2 else 'FAILED'}")
+        print("Account 1 sees door_open; Account 2 sees door_closed.")
+        return
 
     if args.once:
         ok = send_event(base, device_id, "door_open", 1)

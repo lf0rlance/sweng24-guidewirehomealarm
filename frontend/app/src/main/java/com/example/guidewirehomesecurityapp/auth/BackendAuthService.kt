@@ -1,17 +1,39 @@
 package com.example.guidewirehomesecurityapp.auth
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.example.guidewirehomesecurityapp.BuildConfig
+import kotlin.concurrent.thread
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import kotlin.concurrent.thread
+
+private const val PREFS_NAME = "auth_prefs"
+private const val KEY_JWT = "jwt"
 
 object BackendAuthService {
 
+    private fun prefs(context: Context): SharedPreferences =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    /** Persist JWT after successful sign-in/sign-up. */
+    fun saveToken(context: Context, token: String) {
+        prefs(context).edit().putString(KEY_JWT, token).apply()
+    }
+
+    /** Get stored JWT for authenticated API calls. Null if not logged in. */
+    fun getToken(context: Context): String? =
+        prefs(context).getString(KEY_JWT, null)?.takeIf { it.isNotBlank() }
+
+    /** Clear stored JWT (e.g. on logout). */
+    fun clearToken(context: Context) {
+        prefs(context).edit().remove(KEY_JWT).apply()
+    }
+
     private fun request(
+        context: Context,
         path: String,
         idToken: String,
         onSuccess: () -> Unit,
@@ -37,6 +59,15 @@ object BackendAuthService {
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string()
                 if (response.isSuccessful) {
+                    responseBody?.let { body ->
+                        try {
+                            val obj = JSONObject(body)
+                            val jwt = obj.optString("token", "").takeIf { it.isNotBlank() }
+                            if (jwt != null) {
+                                saveToken(context, jwt)
+                            }
+                        } catch (_: Exception) { /* ignore parse failure */ }
+                    }
                     android.os.Handler(android.os.Looper.getMainLooper()).post { onSuccess() }
                 } else {
                     val errorMsg = try {
@@ -70,7 +101,7 @@ object BackendAuthService {
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        request("/auth/signup", idToken, onSuccess, onError)
+        request(context, "/auth/signup", idToken, onSuccess, onError)
     }
 
     fun signIn(
@@ -79,6 +110,6 @@ object BackendAuthService {
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        request("/auth/signin", idToken, onSuccess, onError)
+        request(context, "/auth/signin", idToken, onSuccess, onError)
     }
 }

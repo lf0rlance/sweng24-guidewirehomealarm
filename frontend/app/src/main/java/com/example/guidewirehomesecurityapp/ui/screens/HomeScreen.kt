@@ -4,29 +4,28 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.guidewirehomesecurityapp.api.EventService
 import com.example.guidewirehomesecurityapp.api.SensorEvent
@@ -35,106 +34,175 @@ import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import androidx.compose.material3.Button
 
+/* ---------------- TABS ---------------- */
+
+sealed class HomeTab(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    data object Home : HomeTab("Home", Icons.Filled.Home)
+    data object Control : HomeTab("Control", Icons.Filled.Lock)
+    data object History : HomeTab("History", Icons.Filled.History)
+    data object Eco : HomeTab("Eco", Icons.Filled.Eco)
+    data object Settings : HomeTab("Settings", Icons.Filled.Settings)
+}
+
+private val homeTabs = listOf(
+    HomeTab.Home,
+    HomeTab.Control,
+    HomeTab.History,
+    HomeTab.Eco,
+    HomeTab.Settings
+)
+
+/* ---------------- SCREEN ---------------- */
 
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    onNavigateToEnergy: () -> Unit)
-{
+    onSignOut: () -> Unit = {}
+) {
+    var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var events by remember { mutableStateOf<List<SensorEvent>>(emptyList()) }
-    val lifecycleOwner = LocalLifecycleOwner.current
+
     val context = LocalContext.current
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* result not needed for FCM registration */ }
+    ) {}
+
+    /* ---------------- NOTIFICATION PERMISSION + TOKEN ---------------- */
 
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= 33) {
-            when (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)) {
-                android.content.pm.PackageManager.PERMISSION_GRANTED -> { }
+            when (
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                )
+            ) {
+                android.content.pm.PackageManager.PERMISSION_GRANTED -> {}
                 else -> permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (task.isSuccessful) task.result?.let { AlarmFirebaseMessagingService.registerTokenWithBackend(it) }
+            if (task.isSuccessful) {
+                task.result?.let {
+                    AlarmFirebaseMessagingService.registerTokenWithBackend(context, it)
+                }
+            }
         }
     }
 
-    LaunchedEffect(lifecycleOwner) {
+    /* ---------------- POLL EVENTS ---------------- */
+
+    LaunchedEffect(Unit) {
+        var tick = 0
         while (true) {
             events = withContext(Dispatchers.IO) {
-                EventService.getEvents()
+                EventService.getEvents(context)
             }
-            delay(3000)
-        }
-    }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp)
-    ) {
-        if (events.isEmpty()) {
-            Text(
-                text = "No sensor events yet. Open/close a door on your ESP32 to see events here.",
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.align(Alignment.Center)
-            )
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    Button(
-                        onClick = onNavigateToEnergy,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("View Energy Usage")
+            delay(3000)
+            tick++
+
+            if (tick % 10 == 0) {
+                FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        task.result?.let {
+                            AlarmFirebaseMessagingService.registerTokenWithBackend(context, it)
+                        }
                     }
                 }
-
-                item {
-                    Text(
-                        text = "Sensor events",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
-                items(events.reversed()) { event ->
-                    EventCard(event = event)
-                }
             }
         }
     }
-}
 
-@Composable
-private fun EventCard(event: SensorEvent) {
-    val timeStr = try {
-        val date = Date((event.timestamp * 1000).toLong())
-        SimpleDateFormat("MMM d, HH:mm:ss", Locale.getDefault()).format(date)
-    } catch (_: Exception) {
-        "—"
-    }
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = event.displayType(),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(12.dp)
-        )
-        Text(
-            text = "${event.device_id} · $timeStr",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(start = 12.dp, top = 0.dp, end = 12.dp, bottom = 12.dp),
-            fontSize = 12.sp
-        )
+    /* ---------------- UI ---------------- */
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        bottomBar = {
+            NavigationBar {
+                homeTabs.forEachIndexed { index, tab ->
+                    NavigationBarItem(
+                        selected = selectedIndex == index,
+                        onClick = { selectedIndex = index },
+                        icon = {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = tab.title
+                            )
+                        },
+                        label = { Text(tab.title) }
+                    )
+                }
+            }
+        }
+    ) { innerPadding ->
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f),
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                        ),
+                        start = Offset(0f, 0f),
+                        end = Offset(1000f, 1200f)
+                    )
+                )
+        ) {
+
+            AnimatedContent(
+                targetState = selectedIndex,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(220)) togetherWith
+                            fadeOut(animationSpec = tween(220))
+                },
+                label = "tab_transition"
+            ) { index ->
+
+                when (homeTabs[index]) {
+
+                    HomeTab.Home -> HomeDashboardScreen(
+                        modifier = Modifier.padding(innerPadding),
+                        recentEvents = events,
+                        onNavigateToControl = {
+                            selectedIndex = homeTabs.indexOf(HomeTab.Control)
+                        },
+                        onNavigateToHistory = {
+                            selectedIndex = homeTabs.indexOf(HomeTab.History)
+                        },
+                        onNavigateToSustainability = {
+                            selectedIndex = homeTabs.indexOf(HomeTab.Eco)
+                        },
+                        onNavigateToSettings = {
+                            selectedIndex = homeTabs.indexOf(HomeTab.Settings)
+                        }
+                    )
+
+                    HomeTab.Control -> ControlSecurityScreen(
+                        modifier = Modifier.padding(innerPadding)
+                    )
+
+                    HomeTab.History -> SensorHistoryScreen(
+                        modifier = Modifier.padding(innerPadding),
+                        events = events
+                    )
+
+                    HomeTab.Eco -> SustainabilityScreen(
+                        modifier = Modifier.padding(innerPadding)
+                    )
+
+                    HomeTab.Settings -> SettingsScreen(
+                        modifier = Modifier.padding(innerPadding),
+                        onSignOut = onSignOut
+                    )
+                }
+            }
+        }
     }
 }

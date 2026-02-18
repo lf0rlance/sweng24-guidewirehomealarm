@@ -1,14 +1,16 @@
 package com.example.guidewirehomesecurityapp.api
 
+import android.content.Context
 import com.example.guidewirehomesecurityapp.BuildConfig
+import com.example.guidewirehomesecurityapp.auth.BackendAuthService
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import java.util.concurrent.TimeUnit
 
 /**
- * Fetches processed sensor events from the backend.
- * Backend receives events from ESP32 (POST /api/events) and exposes them at GET /events.
+ * Fetches sensor events for the logged-in user's alarm system from the backend.
+ * GET /events requires Authorization Bearer token; returns only events for that user's system.
  */
 object EventService {
 
@@ -22,12 +24,17 @@ object EventService {
         BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
 
     /**
-     * GET /events — returns all events the backend has received (validated).
-     * Call from a background thread (e.g. Dispatchers.IO).
+     * GET /events — returns events for the authenticated user's alarm system only.
+     * Requires JWT (from login). Call from a background thread (e.g. Dispatchers.IO).
      */
-    fun getEvents(serverBaseUrl: String = serverBaseUrl()): List<SensorEvent> {
+    fun getEvents(context: Context, serverBaseUrl: String = serverBaseUrl()): List<SensorEvent> {
         val url = "$serverBaseUrl/events"
-        val request = Request.Builder().url(url).get().build()
+        val token = BackendAuthService.getToken(context)
+        val requestBuilder = Request.Builder().url(url).get()
+        if (!token.isNullOrBlank()) {
+            requestBuilder.addHeader("Authorization", "Bearer $token")
+        }
+        val request = requestBuilder.build()
         return try {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return emptyList()
