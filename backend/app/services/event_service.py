@@ -6,8 +6,8 @@ from db.connectToAlarmSystem import (
     get_alarm_system_id_by_device_id,
 )
 
-# (event_dict, alarm_system_id)
-EVENTS: List[Tuple[dict, Optional[int]]] = []
+# (event_dict, alarm_system_id, was_armed_when_received)
+EVENTS: List[Tuple[dict, Optional[int], bool]] = []
 
 # (queue, alarm_system_id)
 connected_clients: List[Tuple[asyncio.Queue, Optional[int]]] = []

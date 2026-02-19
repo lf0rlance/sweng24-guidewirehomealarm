@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import socket
 
 from app.config import settings
-from app.routers import auth, events, users, pairing, notifications
+from app.routers import auth, events, users, pairing, notifications, alarm
 from app.models.response_models import HealthResponse
 
 
@@ -54,6 +54,7 @@ app.include_router(events.router)
 app.include_router(users.router)
 app.include_router(pairing.router)
 app.include_router(notifications.router)
+app.include_router(alarm.router)
 
 
 @app.get("/health", response_model=HealthResponse)

@@ -18,6 +18,25 @@ def getCurrentAlarmSystemID(username: str) -> str | None:
     return currentAlarmSystemID
 
 
+def get_username_by_user_id(user_id: int) -> str | None:
+    """Return username for the given user (user_table.id). None if not found."""
+    conn = connectToDB.connectToDB()
+    if conn is None:
+        return None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT username FROM user_table WHERE id = %s", (user_id,))
+        row = cursor.fetchone()
+        return row[0] if row else None
+    except Exception:
+        return None
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def get_alarm_system_id_by_user_id(user_id: int) -> int | None:
     """Return alarm_system_id for the given user (by user_table.id). None if not paired or not found."""
     conn = connectToDB.connectToDB()
@@ -64,6 +83,16 @@ def get_alarm_system_id_by_device_id(device_id: str) -> int | None:
             conn.close()
         except Exception:
             pass
+
+
+def ensure_user_has_alarm_system(user_id: int) -> int | None:
+    """Return alarm_system_id for the user, creating and pairing one if they don't have one."""
+    username = get_username_by_user_id(user_id)
+    if not username:
+        return None
+    if get_alarm_system_id_by_user_id(user_id) is None:
+        connectUserToSystem(username)
+    return get_alarm_system_id_by_user_id(user_id)
 
 
 def connectUserToSystem(username: str) -> None:

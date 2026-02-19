@@ -28,3 +28,10 @@ CREATE TABLE microcontroller (
     REFERENCES alarm_system_table (alarm_system_id)
     ON DELETE CASCADE
 );
+
+-- FCM push tokens (one token per device; re-registering updates alarm_system_id)
+CREATE TABLE IF NOT EXISTS fcm_tokens (
+  token TEXT PRIMARY KEY,
+  alarm_system_id INT NOT NULL,
+  FOREIGN KEY (alarm_system_id) REFERENCES alarm_system_table (alarm_system_id) ON DELETE CASCADE
+);

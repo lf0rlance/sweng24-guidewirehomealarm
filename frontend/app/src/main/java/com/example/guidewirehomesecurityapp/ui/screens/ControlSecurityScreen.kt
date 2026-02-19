@@ -16,18 +16,35 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.guidewirehomesecurityapp.api.AlarmService
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ControlSecurityScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     var systemArmed by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        loading = true
+        val armed = withContext(Dispatchers.IO) { AlarmService.getArmedStatus(context) }
+        if (armed != null) systemArmed = armed
+        loading = false
+    }
     val sensors = remember {
         listOf(
             "Front door" to true,
@@ -83,7 +100,16 @@ fun ControlSecurityScreen(modifier: Modifier = Modifier) {
                 }
                 Switch(
                     checked = systemArmed,
-                    onCheckedChange = { systemArmed = it },
+                    onCheckedChange = { newValue ->
+                        systemArmed = newValue
+                        scope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                AlarmService.setArmedStatus(context, newValue)
+                            }
+                            if (!ok) systemArmed = !newValue
+                        }
+                    },
+                    enabled = !loading,
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = MaterialTheme.colorScheme.primary,
                         checkedTrackColor = MaterialTheme.colorScheme.secondaryContainer

@@ -4,6 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import asyncio
 import json
 import jwt
+import time
 
 from app.validate2 import ValidateData
 from app.config import settings
@@ -39,19 +40,35 @@ def get_current_user_id(
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
+def _is_system_armed(alarm_system_id) -> bool:
+    """True if this alarm system is armed (push/alert only when armed)."""
+    if alarm_system_id is None:
+        return False
+    try:
+        from db.getModeOfSystem import getModeBySysId
+        return bool(getModeBySysId(alarm_system_id))
+    except Exception:
+        return False
+
+
 @router.post("/api/events")
 def receive_event(event: ValidateData):
     alarm_system_id = get_alarm_system_id_for_device(event.device_id)
 
     event_dict = event.model_dump()
-    EVENTS.append((event_dict, alarm_system_id))
+    # Use server time so list and notifications show correct date/time (ESP32 may not have NTP)
+    event_dict["timestamp"] = time.time()
+    was_armed = _is_system_armed(alarm_system_id)
+    EVENTS.append((event_dict, alarm_system_id, was_armed))
 
-    # Push only to matching system streams
+    # Push only to matching system streams (app can show history either way)
     for queue, client_system_id in connected_clients:
         if client_system_id == alarm_system_id:
             queue.put_nowait(event_dict)
 
-    send_push_for_event(event, alarm_system_id)
+    # Only send push notifications when the system is armed
+    if _is_system_armed(alarm_system_id):
+        send_push_for_event(event_dict, alarm_system_id)
 
     return {"status": "ok", "message": "Event received"}
 
@@ -63,10 +80,11 @@ def get_events(user_id: int = Depends(get_current_user_id)):
     if alarm_system_id is None:
         return []
 
+    # Only return events that occurred while the system was armed
     return [
         event_dict
-        for event_dict, sid in EVENTS
-        if sid == alarm_system_id
+        for event_dict, sid, was_armed in EVENTS
+        if sid == alarm_system_id and was_armed
     ]
 
 

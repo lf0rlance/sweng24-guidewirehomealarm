@@ -25,6 +25,11 @@ class ConnectMicrocontrollerRequest(BaseModel):
     username: str
     microcontroller_id: int
 
+
+class ConnectDeviceRequest(BaseModel):
+    """Link ESP32 to current user's alarm system (JWT). Default device_id esp32_001 -> microcontroller_id 1."""
+    microcontroller_id: int = 1
+
 class SimpleStatusResponse(BaseModel):
     status: str
     message: str

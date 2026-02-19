@@ -6,7 +6,7 @@ from app.config import settings
 from app.models.request_models import RegisterTokenRequest
 from app.models.response_models import SimpleStatusResponse
 from app.services.notification_service import register_fcm_token
-from app.services.event_service import get_alarm_system_id_for_user
+from db.connectToAlarmSystem import ensure_user_has_alarm_system
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
@@ -35,14 +35,10 @@ def register_token(
     request: RegisterTokenRequest,
     user_id: int = Depends(get_current_user_id)
 ):
-    alarm_system_id = get_alarm_system_id_for_user(user_id)
-
+    # Ensure user has an alarm system (create one if needed) so we can store their FCM token
+    alarm_system_id = ensure_user_has_alarm_system(user_id)
     if alarm_system_id is None:
-        raise HTTPException(status_code=400, detail="User not paired")
+        raise HTTPException(status_code=400, detail="Could not create alarm system")
 
     register_fcm_token(alarm_system_id, request.token)
-
-    return {
-        "status": "ok",
-        "message": "Token registered"
-    }
+    return {"status": "ok", "message": "Token registered"}

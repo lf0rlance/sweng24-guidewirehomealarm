@@ -13,4 +13,4 @@ WIFI_PASSWORD = "wifi_pass"
 # For AP mode: laptop connects to ESP32 WiFi and gets IP 192.168.4.2
 # ESP32 sends events to the laptop
 # should add security here, maybe use esp32 auth token that backend can validate 
-BACKEND_URL = "http://192.168.4.2:5000/data"
+BACKEND_URL = "http://192.168.4.2:5000/api/events"
