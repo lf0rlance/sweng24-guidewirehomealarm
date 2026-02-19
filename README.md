@@ -50,13 +50,25 @@ This week we're going to work on getting a working end to end system, even if it
 - For frontend, we will have a web application for Maintenance/Admin and a mobile application for our end users.
 - Finally, scalability needs to be kept in mind for multiple homes with multiple end users and ESP32. Also, good to keep in mind when developing that this security system can be easily integrated into a larger security system (Cameras, sensors etc).
 
+## Repository structure
+
+| Part          | Path         | Tech                    |
+|---------------|--------------|-------------------------|
+| Backend       | `backend/`   | FastAPI, PostgreSQL     |
+| Mobile app    | `frontend/`  | Android (Kotlin, Compose) |
+| Microcontroller | `microcontroller/` | ESP32, MicroPython |
+
+- **Backend:** `cd backend && py run.py` — API at http://127.0.0.1:5000, docs at `/docs`. See `backend/README.md` and `backend/db/README_SETUP.md`.
+- **Frontend:** Android app; open in Android Studio or build with Gradle. In `frontend/local.properties` set `API_BASE_URL` (and optionally `IMAGE_BASE_URL`). Use `http://10.0.2.2:5000/api/` for the **emulator** (10.0.2.2 = host machine). On a **physical device** use your PC’s LAN IP, e.g. `http://192.168.0.x:5000/api/`, and ensure the device and PC are on the same Wi‑Fi.
+- **Microcontroller:** ESP32 firmware in `microcontroller/src/`; see `microcontroller/notes.md`.
+
 ## Proposed Tech Stack
 
 | Layer                              |                 Tech                  | Description                                                                                                                                                                                                                                                           |
 | :--------------------------------- | :-----------------------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Middleware (ESP32 Microcontroller) |                ESPHome                | Easy to implement API into our backend thats desgined for the ESP32 and can communicate with the device over wifi                                                                                                                                                     |
-| Backend                            | Nodejs + MongoDB. Python / TypeScript | During Development, easiest to run backend locally. Not fully certain on deploying our backend but our best idea is using a rasberry pi as opposed to a cloud service. We will mostly use python / JavaScript as most of us are comfortable coding in those languages |
-| Frontend                           | React / JavaScript. Koitlin + Gradle. | For admin/maintenance, we can use a simple web application using React and JavaScript. For end users, we can develop an android app using Kotilin (basically typeScript) and build with gradle.                                                                       |
+| Backend                            | FastAPI + PostgreSQL                 | REST API (auth, events, pairing). Run locally; deploy e.g. on Raspberry Pi.                                                                                                                                                                                            |
+| Frontend                           | React / JavaScript. Kotlin + Gradle. | For admin/maintenance, we can use a simple web application using React and JavaScript. For end users, we can develop an android app using Kotlin (basically typeScript) and build with gradle.                                                                       |
 
 ### Other Tech / Notes
 
