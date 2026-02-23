@@ -140,8 +140,9 @@ tag-release:
   image: alpine:3.20
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
-  script:
-    - apk add --no-cache curl
-    - VERSION=$(cat VERSION)
-    - TAG="v${VERSION}.${CI_PIPELINE_IID}"
-    - curl --request POST --header "PRIVATE-TOKEN: $GITLAB_TOKEN" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/repository/tags?tag_name=${TAG}&ref=${CI_COMMIT_SHA}"
+  script: |
+    set -e
+    apk add --no-cache curl
+    VERSION=$(cat VERSION)
+    TAG="v${VERSION}.${CI_PIPELINE_IID}"
+    curl --request POST --header "PRIVATE-TOKEN: $GITLAB_TOKEN" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/repository/tags?tag_name=${TAG}&ref=${CI_COMMIT_SHA}"
