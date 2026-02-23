@@ -135,7 +135,7 @@ build-microcontroller:
   when: manual
 
 # Create Git tag for release
-  tag-release:
+tag-release:
   stage: build
   image: alpine:3.20
   rules:
