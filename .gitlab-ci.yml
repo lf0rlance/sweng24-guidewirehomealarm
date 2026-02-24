@@ -150,9 +150,7 @@ release-auto:
     git checkout main
 
     VERSION=$(cat VERSION)
-    IFS='.' read -r MAJOR MINOR PATCH <<EOF
-$VERSION
-EOF
+    IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
 
     COMMIT_MSG=$(git log -1 --pretty=%B "$CI_COMMIT_SHA")
     if echo "$COMMIT_MSG" | grep -q "BREAKING CHANGE"; then
