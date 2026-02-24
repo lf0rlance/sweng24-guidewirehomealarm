@@ -1,6 +1,7 @@
 stages:
   - validate
   - build
+  - release
 
 variables:
   DOCKER_DRIVER: overlay2
@@ -134,15 +135,47 @@ build-microcontroller:
     - main
   when: manual
 
-# Create Git tag for release
-tag-release:
-  stage: build
+# Automated version bump + tag
+release-auto:
+  stage: release
   image: alpine:3.20
   rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"
   script: |
     set -e
-    apk add --no-cache curl
+    apk add --no-cache git curl
+    git config user.email "ci-bot@tcd.com"
+    git config user.name "ci-bot"
+    git fetch origin main
+    git checkout main
+
     VERSION=$(cat VERSION)
-    TAG="v${VERSION}.${CI_PIPELINE_IID}"
-    curl --request POST --header "PRIVATE-TOKEN: $GITLAB_TOKEN" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/repository/tags?tag_name=${TAG}&ref=${CI_COMMIT_SHA}"
+    IFS='.' read -r MAJOR MINOR PATCH <<EOF
+$VERSION
+EOF
+
+    COMMIT_MSG=$(git log -1 --pretty=%B "$CI_COMMIT_SHA")
+    if echo "$COMMIT_MSG" | grep -q "BREAKING CHANGE"; then
+      MAJOR=$((MAJOR + 1))
+      MINOR=0
+      PATCH=0
+    elif echo "$COMMIT_MSG" | grep -q "!:"; then
+      MAJOR=$((MAJOR + 1))
+      MINOR=0
+      PATCH=0
+    elif echo "$COMMIT_MSG" | grep -q "^feat"; then
+      MINOR=$((MINOR + 1))
+      PATCH=0
+    else
+      PATCH=$((PATCH + 1))
+    fi
+
+    NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+    echo "$NEW_VERSION" > VERSION
+    git add VERSION
+    git commit -m "chore(release): bump version to $NEW_VERSION [skip ci]"
+    git push "https://oauth2:$GITLAB_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git" HEAD:main
+
+    NEW_SHA=$(git rev-parse HEAD)
+    TAG="v${NEW_VERSION}"
+    curl --request POST --header "PRIVATE-TOKEN: $GITLAB_TOKEN" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/repository/tags?tag_name=${TAG}&ref=${NEW_SHA}"
