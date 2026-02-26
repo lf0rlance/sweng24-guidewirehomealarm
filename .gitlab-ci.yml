@@ -1,3 +1,285 @@
-noop:
+stages:
+  - validate
+  - build
+  - release
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_BUILDKIT: "1"
+  BACKEND_IMAGE: $CI_REGISTRY_IMAGE/backend
+  FRONTEND_IMAGE: $CI_REGISTRY_IMAGE/frontend
+  MICROCONTROLLER_IMAGE: $CI_REGISTRY_IMAGE/microcontroller
+
+# Backend validation using Python runtime
+backend-syntax:
+  stage: validate
+  image: python:3.11-slim
   script:
-    - echo "ok"
+    - echo "=== Backend Syntax Validation ==="
+    - cd backend
+    - echo "Checking syntax for all Python files..."
+    - python -m py_compile app/*.py *.py
+    - echo "✓ Syntax validation passed"
+  artifacts:
+    when: on_failure
+    paths:
+      - backend/
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Lint for code quality
+backend-lint:
+  stage: validate
+  image: python:3.11-slim
+  script:
+    - echo "=== Backend Code Quality Check ==="
+    - cd backend
+    - pip install --quiet flake8
+    - echo "Running flake8 linter..."
+    - flake8 app/ --max-line-length=120 --exclude=__pycache__,*.pyc --statistics --count
+    - echo "✓ Linting completed"
+  artifacts:
+    when: always
+    reports:
+      codequality: backend/flake8-report.json
+    expire_in: 1 week
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Backend tests using Python runtime
+backend-test:
+  stage: validate
+  image: python:3.11-slim
+  script:
+    - echo "=== Backend Test Suite ==="
+    - cd backend
+    - echo "Installing dependencies..."
+    - pip install --quiet -r requirements.txt -r requirements-dev.txt
+    - echo "Running pytest with coverage..."
+    - pytest unit_tests/ -v --junitxml=test-results.xml --cov=app --cov-report=term --cov-report=html --cov-report=xml
+    - echo "✓ Tests completed"
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    when: always
+    reports:
+      junit: backend/test-results.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: backend/coverage.xml
+    paths:
+      - backend/htmlcov/
+      - backend/test-results.xml
+      - backend/coverage.xml
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Microcontroller validation using Python runtime
+microcontroller-syntax:
+  stage: validate
+  image: python:3.11-slim
+  script:
+    - echo "=== Microcontroller Syntax Validation ==="
+    - cd microcontroller
+    - echo "Validating MicroPython files..."
+    - python -m py_compile src/*.py boot.py
+    - echo "✓ MicroPython syntax validation passed"
+  artifacts:
+    when: on_failure
+    paths:
+      - microcontroller/
+    expire_in: 1 week
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+# Frontend build and test
+frontend-build:
+  stage: validate
+  image: eclipse-temurin:17-jdk
+  before_script:
+    - echo "=== Setting up Android SDK ==="
+    - apt-get update && apt-get install -y wget unzip
+    - wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O /tmp/cmdline-tools.zip
+    - mkdir -p /opt/android-sdk/cmdline-tools
+    - unzip -q /tmp/cmdline-tools.zip -d /opt/android-sdk/cmdline-tools
+    - mv /opt/android-sdk/cmdline-tools/cmdline-tools /opt/android-sdk/cmdline-tools/latest
+    - export ANDROID_HOME=/opt/android-sdk
+    - export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+    - yes | sdkmanager --licenses || true
+    - sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+    - echo "✓ Android SDK ready"
+  script:
+    - echo "=== Frontend Android Build ==="
+    - cd frontend
+    - chmod +x gradlew
+    - echo "Running Gradle build..."
+    - ./gradlew assembleDebug --stacktrace --info
+    - echo "✓ Build completed"
+  artifacts:
+    when: always
+    paths:
+      - frontend/app/build/outputs/apk/debug/*.apk
+      - frontend/app/build/reports/
+      - frontend/build/reports/
+    expire_in: 1 week
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+# Docker build validation - backend
+docker-validate-backend:
+  stage: validate
+  image: docker:24
+  services:
+    - docker:24-dind
+  script:
+    - echo "=== Docker Build Validation - Backend ==="
+    - cd backend
+    - echo "Building Docker image..."
+    - docker build -t backend-test . --progress=plain
+    - echo "✓ Docker build successful"
+    - docker images | grep backend-test
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Docker build validation - frontend
+docker-validate-frontend:
+  stage: validate
+  image: docker:24
+  services:
+    - docker:24-dind
+  script:
+    - echo "=== Docker Build Validation - Frontend ==="
+    - cd frontend
+    - echo "Building Docker image..."
+    - docker build -t frontend-test . --progress=plain
+    - echo "✓ Docker build successful"
+    - docker images | grep frontend-test
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+# Docker build validation - microcontroller
+docker-validate-microcontroller:
+  stage: validate
+  image: docker:24
+  services:
+    - docker:24-dind
+  script:
+    - echo "=== Docker Build Validation - Microcontroller ==="
+    - cd microcontroller
+    - echo "Building Docker image..."
+    - docker build -t microcontroller-test . --progress=plain
+    - echo "✓ Docker build successful"
+    - docker images | grep microcontroller-test
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+# Build Docker image
+build-backend:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker buildx create --use
+  script:
+    - cd backend
+    - docker buildx build --platform linux/amd64,linux/arm64 -t $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA -t $BACKEND_IMAGE:latest --push .
+  only:
+    - main
+  when: manual
+
+# Build frontend Docker image
+build-frontend:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker buildx create --use
+  script:
+    - cd frontend
+    - docker buildx build --platform linux/amd64,linux/arm64 -t $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA -t $FRONTEND_IMAGE:latest --push .
+  only:
+    - main
+  when: manual
+
+# Build microcontroller Docker image
+build-microcontroller:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker buildx create --use
+  script:
+    - cd microcontroller
+    - docker buildx build --platform linux/amd64,linux/arm64 -t $MICROCONTROLLER_IMAGE:$CI_COMMIT_SHORT_SHA -t $MICROCONTROLLER_IMAGE:latest --push .
+  only:
+    - main
+  when: manual
+
+# Automated version bump + tag
+release-auto:
+  stage: release
+  image: alpine:3.20
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"
+  script: |
+    set -e
+    apk add --no-cache git curl
+    git config user.email "ci-bot@tcd.com"
+    git config user.name "ci-bot"
+    git fetch origin main
+    git checkout main
+
+    VERSION=$(cat VERSION)
+    IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+
+    COMMIT_MSG=$(git log -1 --pretty=%B "$CI_COMMIT_SHA")
+    if echo "$COMMIT_MSG" | grep -q "BREAKING CHANGE"; then
+      MAJOR=$((MAJOR + 1))
+      MINOR=0
+      PATCH=0
+    elif echo "$COMMIT_MSG" | grep -q "!:"; then
+      MAJOR=$((MAJOR + 1))
+      MINOR=0
+      PATCH=0
+    elif echo "$COMMIT_MSG" | grep -q "^feat"; then
+      MINOR=$((MINOR + 1))
+      PATCH=0
+    else
+      PATCH=$((PATCH + 1))
+    fi
+
+    NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+    echo "$NEW_VERSION" > VERSION
+    git add VERSION
+    git commit -m "chore(release): bump version to $NEW_VERSION [skip ci]"
+    git push "https://oauth2:$GITLAB_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git" HEAD:main
+
+    NEW_SHA=$(git rev-parse HEAD)
+    TAG="v${NEW_VERSION}"
+    curl --request POST --header "PRIVATE-TOKEN: $GITLAB_TOKEN" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/repository/tags?tag_name=${TAG}&ref=${NEW_SHA}"
