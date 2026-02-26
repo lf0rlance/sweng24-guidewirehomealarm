@@ -11,15 +11,17 @@ variables:
   FRONTEND_IMAGE: $CI_REGISTRY_IMAGE/frontend
   MICROCONTROLLER_IMAGE: $CI_REGISTRY_IMAGE/microcontroller
 
-# Backend validation using Python runtime
+# Backend validation using Docker
 backend-syntax:
   stage: validate
-  image: python:3.11-slim
+  image: docker:24
+  services:
+    - docker:24-dind
   script:
     - echo "=== Backend Syntax Validation ==="
     - cd backend
     - echo "Checking syntax for all Python files..."
-    - python -m py_compile app/*.py *.py
+    - docker run --rm -v "${PWD}:/app" -w /app python:3.11-slim sh -c "python -m py_compile app/*.py *.py"
     - echo "✓ Syntax validation passed"
   artifacts:
     when: on_failure
@@ -34,38 +36,33 @@ backend-syntax:
 # Lint for code quality
 backend-lint:
   stage: validate
-  image: python:3.11-slim
+  image: docker:24
+  services:
+    - docker:24-dind
   script:
     - echo "=== Backend Code Quality Check ==="
     - cd backend
-    - pip install --quiet flake8
     - echo "Running flake8 linter..."
-    - flake8 app/ --max-line-length=120 --exclude=__pycache__,*.pyc --statistics --count
+    - docker run --rm -v "${PWD}:/app" -w /app python:3.11-slim sh -c "pip install --quiet flake8 && flake8 app/ --max-line-length=120 --exclude=__pycache__,*.pyc --statistics --count"
     - echo "✓ Linting completed"
-  artifacts:
-    when: always
-    reports:
-      codequality: backend/flake8-report.json
-    expire_in: 1 week
   allow_failure: true
   only:
     - merge_requests
     - main
     - develop
 
-# Backend tests using Python runtime
+# Backend tests using Docker
 backend-test:
   stage: validate
-  image: python:3.11-slim
+  image: docker:24
+  services:
+    - docker:24-dind
   script:
     - echo "=== Backend Test Suite ==="
     - cd backend
-    - echo "Installing dependencies..."
-    - pip install --quiet -r requirements.txt -r requirements-dev.txt
-    - echo "Running pytest with coverage..."
-    - pytest unit_tests/ -v --junitxml=test-results.xml --cov=app --cov-report=term --cov-report=html --cov-report=xml
+    - echo "Installing dependencies and running tests..."
+    - docker run --rm -v "${PWD}:/app" -w /app python:3.11-slim sh -c "pip install --quiet -r requirements.txt -r requirements-dev.txt && pytest unit_tests/ -v --junitxml=test-results.xml --cov=app --cov-report=term --cov-report=html --cov-report=xml"
     - echo "✓ Tests completed"
-  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     when: always
     reports:
@@ -83,15 +80,17 @@ backend-test:
     - main
     - develop
 
-# Microcontroller validation using Python runtime
+# Microcontroller validation using Docker
 microcontroller-syntax:
   stage: validate
-  image: python:3.11-slim
+  image: docker:24
+  services:
+    - docker:24-dind
   script:
     - echo "=== Microcontroller Syntax Validation ==="
     - cd microcontroller
     - echo "Validating MicroPython files..."
-    - python -m py_compile src/*.py boot.py
+    - docker run --rm -v "${PWD}:/app" -w /app python:3.11-slim sh -c "python -m py_compile src/*.py boot.py"
     - echo "✓ MicroPython syntax validation passed"
   artifacts:
     when: on_failure
