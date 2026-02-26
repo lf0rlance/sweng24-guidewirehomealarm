@@ -14,6 +14,8 @@ variables:
 # Backend validation using Docker
 backend-syntax:
   stage: validate
+  tags:
+    - docker
   image: docker:24
   services:
     - docker:24-dind
@@ -36,6 +38,8 @@ backend-syntax:
 # Lint for code quality
 backend-lint:
   stage: validate
+  tags:
+    - docker
   image: docker:24
   services:
     - docker:24-dind
@@ -54,6 +58,8 @@ backend-lint:
 # Backend tests using Docker
 backend-test:
   stage: validate
+  tags:
+    - docker
   image: docker:24
   services:
     - docker:24-dind
@@ -83,6 +89,8 @@ backend-test:
 # Microcontroller validation using Docker
 microcontroller-syntax:
   stage: validate
+  tags:
+    - docker
   image: docker:24
   services:
     - docker:24-dind
@@ -105,6 +113,8 @@ microcontroller-syntax:
 # Frontend build and test
 frontend-build:
   stage: validate
+  tags:
+    - docker
   image: eclipse-temurin:17-jdk
   before_script:
     - echo "=== Setting up Android SDK ==="
@@ -140,6 +150,8 @@ frontend-build:
 # Docker build validation - backend
 docker-validate-backend:
   stage: validate
+  tags:
+    - docker
   image: docker:24
   services:
     - docker:24-dind
@@ -159,6 +171,8 @@ docker-validate-backend:
 # Docker build validation - frontend
 docker-validate-frontend:
   stage: validate
+  tags:
+    - docker
   image: docker:24
   services:
     - docker:24-dind
@@ -177,6 +191,8 @@ docker-validate-frontend:
 # Docker build validation - microcontroller
 docker-validate-microcontroller:
   stage: validate
+  tags:
+    - docker
   image: docker:24
   services:
     - docker:24-dind
@@ -195,6 +211,8 @@ docker-validate-microcontroller:
 # Build Docker image
 build-backend:
   stage: build
+  tags:
+    - docker
   image: docker:24
   services:
     - docker:24-dind
@@ -211,6 +229,8 @@ build-backend:
 # Build frontend Docker image
 build-frontend:
   stage: build
+  tags:
+    - docker
   image: docker:24
   services:
     - docker:24-dind
@@ -227,6 +247,8 @@ build-frontend:
 # Build microcontroller Docker image
 build-microcontroller:
   stage: build
+  tags:
+    - docker
   image: docker:24
   services:
     - docker:24-dind
@@ -243,6 +265,8 @@ build-microcontroller:
 # Automated version bump + tag
 release-auto:
   stage: release
+  tags:
+    - docker
   image: alpine:3.20
   rules:
     - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"
