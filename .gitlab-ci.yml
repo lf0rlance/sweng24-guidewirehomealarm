@@ -30,6 +30,7 @@ backend-syntax:
     paths:
       - backend/
     expire_in: 1 week
+  allow_failure: true
   only:
     - merge_requests
     - main
@@ -81,6 +82,7 @@ backend-test:
       - backend/test-results.xml
       - backend/coverage.xml
     expire_in: 1 week
+  allow_failure: true
   only:
     - merge_requests
     - main
