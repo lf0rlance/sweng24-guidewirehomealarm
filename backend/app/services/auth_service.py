@@ -1,4 +1,6 @@
+#
 import jwt
+from datetime import datetime, timedelta, timezone
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
@@ -20,8 +22,18 @@ def verify_google_token(id_token_str: str):
 
 
 def build_user_response(user: dict):
+    if not settings.jwt_secret:
+        raise ValueError("JWT secret is not configured")
+
+    now = datetime.now(timezone.utc)
     token = jwt.encode(
-        {"userId": user["id"], "email": user["email"]},
+        {
+            "sub": str(user["id"]),
+            "userId": user["id"],
+            "email": user["email"],
+            "iat": int(now.timestamp()),
+            "exp": int((now + timedelta(hours=1)).timestamp()),
+        },
         settings.jwt_secret,
         algorithm="HS256"
     )

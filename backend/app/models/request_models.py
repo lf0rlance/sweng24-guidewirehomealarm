@@ -17,12 +17,12 @@ class CreateUserRequest(BaseModel):
 
 
 class PairUserRequest(BaseModel):
-    username: str
+    username: str | None = None
     system_password: str
 
 
 class ConnectMicrocontrollerRequest(BaseModel):
-    username: str
+    username: str | None = None
     microcontroller_id: int
 
 class SimpleStatusResponse(BaseModel):

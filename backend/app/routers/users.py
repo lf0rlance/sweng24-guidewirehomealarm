@@ -16,4 +16,4 @@ def create_user(request: CreateUserRequest):
     ):
         raise HTTPException(status_code=400, detail="User already exists")
 
-    return {"status": "ok"}
+    return {"status": "ok", "message": "User created"}
