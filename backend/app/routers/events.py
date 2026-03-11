@@ -5,7 +5,7 @@ import asyncio
 import json
 
 from app.validate2 import ValidateData
-from app.services.event_service import EVENTS, connected_clients
+from app.services.event_service import EVENTS, connected_clients, is_duplicate
 from app.security import AuthenticatedUser, get_current_user
 from db.getMicrocontrollerBySystem import is_microcontroller_registered_to_user
 
@@ -19,6 +19,9 @@ def receive_event(event: ValidateData, current_user: AuthenticatedUser = Depends
 
     if not is_microcontroller_registered_to_user(microcontroller_id, current_user.user_id):
         raise HTTPException(status_code=403, detail="Device not registered to your alarm system")
+
+    if is_duplicate(event.device_id, event.count):
+        raise HTTPException(status_code=409, detail="Duplicate event rejected")
 
     EVENTS.append(event)
 
