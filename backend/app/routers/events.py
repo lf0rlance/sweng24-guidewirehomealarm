@@ -5,7 +5,7 @@ import asyncio
 import json
 
 from app.validate2 import ValidateData
-from app.services.event_service import EVENTS, connected_clients, is_duplicate
+from app.services.event_service import EVENTS, connected_clients, is_duplicate, is_sequence_valid
 from app.security import AuthenticatedUser, get_current_user
 from db.getMicrocontrollerBySystem import is_microcontroller_registered_to_user
 
@@ -22,6 +22,9 @@ def receive_event(event: ValidateData, current_user: AuthenticatedUser = Depends
 
     if is_duplicate(event.device_id, event.count):
         raise HTTPException(status_code=409, detail="Duplicate event rejected")
+
+    if not is_sequence_valid(event.device_id, event.count):
+        raise HTTPException(status_code=422, detail="Event count out of sequence")
 
     EVENTS.append(event)
 

@@ -32,3 +32,27 @@ def is_duplicate(device_id: str, count: int) -> bool:
 
     _seen_events[key] = now
     return False
+
+
+# Sequence store: { device_id: last_accepted_count }
+_last_counts: dict[str, int] = {}
+
+
+def is_sequence_valid(device_id: str, count: int) -> bool:
+    """
+    Returns True if count is valid for this device:
+    - First event from this device: any count accepted.
+    - Subsequent events: count must be exactly last_count + 1.
+    Updates the stored count if valid.
+    """
+    if device_id not in _last_counts:
+        # First event from this device — accept and record
+        _last_counts[device_id] = count
+        return True
+
+    expected = _last_counts[device_id] + 1
+    if count != expected:
+        return False
+
+    _last_counts[device_id] = count
+    return True
