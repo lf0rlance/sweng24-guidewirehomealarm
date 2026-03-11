@@ -1,5 +1,5 @@
 #
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 import asyncio
 import json
@@ -7,12 +7,19 @@ import json
 from app.validate2 import ValidateData
 from app.services.event_service import EVENTS, connected_clients
 from app.security import AuthenticatedUser, get_current_user
+from db.getMicrocontrollerBySystem import is_microcontroller_registered_to_user
 
 router = APIRouter()
 
 
 @router.post("/api/events")
-def receive_event(event: ValidateData, _user: AuthenticatedUser = Depends(get_current_user)):
+def receive_event(event: ValidateData, current_user: AuthenticatedUser = Depends(get_current_user)):
+    # Extract numeric ID from device_id (e.g. "esp32_123" → 123)
+    microcontroller_id = int(event.device_id.split("_")[1])
+
+    if not is_microcontroller_registered_to_user(microcontroller_id, current_user.user_id):
+        raise HTTPException(status_code=403, detail="Device not registered to your alarm system")
+
     EVENTS.append(event)
 
     for queue in connected_clients:
