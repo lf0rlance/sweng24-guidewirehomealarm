@@ -6,6 +6,7 @@ import socket
 from app.config import settings
 from app.routers import auth, events, users, pairing
 from app.models.response_models import HealthResponse
+from app.rate_limit import SlidingWindow, RateLimitMiddleware
 
 
 def get_local_ip():
@@ -47,6 +48,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+rate_limiter = SlidingWindow(max_requests=100, window_seconds=60)
+app.add_middleware(RateLimitMiddleware, limiter=rate_limiter)
 
 # Include routers
 app.include_router(auth.router)
