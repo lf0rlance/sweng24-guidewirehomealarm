@@ -1,0 +1,39 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.iml
+
+# Secrets
+.env
+**/.env
+firebase-service-account.json
+**/firebase-service-account.json
+**/google-services.json
+google-services.json
+
+# Python
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Node
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+
+# Android / Gradle
+/frontend/build/
+/frontend/app/build/
+/frontend/.gradle/
+local.properties
+**/local.properties
+.externalNativeBuild/
+**/.externalNativeBuild/
+.cxx/
+**/.cxx/
+gradlew
