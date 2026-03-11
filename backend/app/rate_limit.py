@@ -1,3 +1,6 @@
+#algorithm from:
+#https://oneuptime.com/blog/post/2026-01-21-sliding-window-rate-limiting-python/view
+
 from dataclasses import dataclass
 from collections import defaultdict
 from fastapi import Request
@@ -5,6 +8,18 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Callable, Optional
 import time
+import logging
+import logging.handlers
+
+# Log rate limit events to a rotating file (max 5MB, keep 3 backups)
+_handler = logging.handlers.RotatingFileHandler(
+    "rate_limit.log", maxBytes=5 * 1024 * 1024, backupCount=3
+)
+_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+
+logger = logging.getLogger("rate_limit")
+logger.setLevel(logging.WARNING)
+logger.addHandler(_handler)
 
 
 @dataclass
@@ -88,6 +103,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         result = self.limiter.check(key)
 
         if not result.allowed:
+            logger.warning(
+                "Rate limit exceeded | ip=%s method=%s path=%s retry_after=%.1fs",
+                key, request.method, request.url.path, result.retry_after
+            )
             return JSONResponse(
                 status_code=429,
                 content={
