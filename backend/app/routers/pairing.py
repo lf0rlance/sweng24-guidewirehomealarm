@@ -1,3 +1,4 @@
+#
 from fastapi import APIRouter, Depends, HTTPException
 from app.models.request_models import PairUserRequest, ConnectMicrocontrollerRequest
 from app.models.response_models import SimpleStatusResponse, MicrocontrollerConnectResponse

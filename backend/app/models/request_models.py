@@ -13,7 +13,6 @@ class CreateUserRequest(BaseModel):
     username: str
     email: str
     password: str
-    alarm_system_id: int | None = None
 
 
 class PairUserRequest(BaseModel):

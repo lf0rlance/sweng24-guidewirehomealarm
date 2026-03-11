@@ -17,5 +17,7 @@ if __name__ == "__main__":
         "app.main:app",
         host=settings.host,
         port=settings.port,
-        reload=False  # Set True for dev auto-reload; False avoids subprocess 404 issues
+        reload=False,  # Set True for dev auto-reload; False avoids subprocess 404 issues
+        ssl_certfile=settings.ssl_certfile or None,
+        ssl_keyfile=settings.ssl_keyfile or None,
     )
