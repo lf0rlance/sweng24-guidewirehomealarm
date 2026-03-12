@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.rememberDatePickerState
 import com.example.guidewirehomesecurityapp.api.SensorEvent
+import com.example.guidewirehomesecurityapp.ui.components.ScreenTitleWithLogo
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -160,11 +161,8 @@ fun SensorHistoryScreen(
                     Column(
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "Sensor activation history",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
+                        ScreenTitleWithLogo(
+                            title = "Sensor activation history",
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
                         Text(

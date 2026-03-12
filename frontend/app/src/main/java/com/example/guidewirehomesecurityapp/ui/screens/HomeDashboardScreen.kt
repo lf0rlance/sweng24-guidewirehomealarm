@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.guidewirehomesecurityapp.api.SensorEvent
+import com.example.guidewirehomesecurityapp.ui.components.ScreenTitleWithLogo
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -93,11 +94,8 @@ fun HomeDashboardScreen(
     )
 
     Column(modifier = modifier.padding(20.dp)) {
-        Text(
-            text = "Guidewire Home Security App",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
+        ScreenTitleWithLogo(
+            title = "Guidewire SafeHome",
             modifier = Modifier.padding(bottom = 6.dp)
         )
         Text(

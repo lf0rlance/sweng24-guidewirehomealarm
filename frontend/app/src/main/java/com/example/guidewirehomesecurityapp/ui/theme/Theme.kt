@@ -12,43 +12,53 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// Guidewire Home Security brand colours
-private val LightRed = Color(0xFFE8B4B8)
-private val LightRedDark = Color(0xFFD4959A)
-private val LightBlue = Color(0xFFB4D4E8)
-private val LightBlueDark = Color(0xFF7BB3D4)
-private val LightYellowAccent = Color(0xFFF5E6B3)
+// Guidewire SafeHome – green computing & sustainability palette
+private val ForestGreen = Color(0xFF2D5A3D)
+private val ForestGreenDark = Color(0xFF1E3D2A)
+private val SageGreen = Color(0xFF8FBC8F)
+private val SageGreenDark = Color(0xFF6B9B6B)
+private val LeafLight = Color(0xFFC8E6C9)
+private val EarthBrown = Color(0xFF8D6E63)
+private val EarthBrownLight = Color(0xFFBCAAA4)
+private val CreamBackground = Color(0xFFF1F8E9)
+private val WarmWhite = Color(0xFFFAFAF8)
 
 private val LightColorScheme = lightColorScheme(
-    primary = LightBlueDark,
-    onPrimary = Color.White,
-    primaryContainer = LightBlue,
-    onPrimaryContainer = Color(0xFF1A3A4D),
-    secondary = LightRedDark,
-    onSecondary = Color.White,
-    secondaryContainer = LightRed,
-    onSecondaryContainer = Color(0xFF4A2528),
-    tertiary = LightYellowAccent,
-    background = Color(0xFFF8FAFC),
-    onBackground = Color(0xFF1A1C1E),
-    surface = Color.White,
-    onSurface = Color(0xFF1A1C1E)
+    primary = ForestGreen,
+    onPrimary = WarmWhite,
+    primaryContainer = LeafLight,
+    onPrimaryContainer = ForestGreenDark,
+    secondary = SageGreenDark,
+    onSecondary = WarmWhite,
+    secondaryContainer = SageGreen,
+    onSecondaryContainer = ForestGreenDark,
+    tertiary = EarthBrownLight,
+    onTertiary = ForestGreenDark,
+    background = CreamBackground,
+    onBackground = Color(0xFF1B1C1A),
+    surface = WarmWhite,
+    onSurface = Color(0xFF1B1C1A),
+    surfaceVariant = LeafLight.copy(alpha = 0.6f),
+    onSurfaceVariant = Color(0xFF3D4A3E)
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = LightBlue,
-    onPrimary = Color(0xFF1A3A4D),
-    primaryContainer = LightBlueDark,
-    onPrimaryContainer = Color.White,
-    secondary = LightRed,
-    onSecondary = Color(0xFF4A2528),
-    secondaryContainer = LightRedDark,
-    onSecondaryContainer = Color.White,
-    tertiary = LightYellowAccent,
-    background = Color(0xFF1A1C1E),
-    onBackground = Color(0xFFE3E2E6),
-    surface = Color(0xFF1A1C1E),
-    onSurface = Color(0xFFE3E2E6)
+    primary = SageGreen,
+    onPrimary = ForestGreenDark,
+    primaryContainer = ForestGreen,
+    onPrimaryContainer = LeafLight,
+    secondary = SageGreen,
+    onSecondary = ForestGreenDark,
+    secondaryContainer = ForestGreenDark,
+    onSecondaryContainer = SageGreen,
+    tertiary = EarthBrownLight,
+    onTertiary = ForestGreenDark,
+    background = Color(0xFF1B1C1A),
+    onBackground = Color(0xFFE3E6E1),
+    surface = Color(0xFF1E2B21),
+    onSurface = Color(0xFFE3E6E1),
+    surfaceVariant = ForestGreen.copy(alpha = 0.4f),
+    onSurfaceVariant = Color(0xFFC2CFC4)
 )
 
 @Composable

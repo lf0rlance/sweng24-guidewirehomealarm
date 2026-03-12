@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.guidewirehomesecurityapp.auth.GoogleSignInUtils
 import com.example.guidewirehomesecurityapp.notifications.AlarmFirebaseMessagingService
+import com.example.guidewirehomesecurityapp.ui.components.TopCenterLogo
 
 @Composable
 fun LoginScreen(
@@ -82,6 +83,8 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            TopCenterLogo(sizeDp = 200)
+            Spacer(Modifier.height(24.dp))
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -91,7 +94,7 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Welcome to Guidewire's Home Security App",
+                    text = "Welcome to Guidewire SafeHome",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = colorScheme.primary,
