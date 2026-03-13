@@ -9,6 +9,8 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.guidewirehomesecurityapp.BuildConfig
 import com.example.guidewirehomesecurityapp.MainActivity
+import com.example.guidewirehomesecurityapp.auth.BackendAuthService
+import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import kotlin.concurrent.thread
@@ -26,7 +28,7 @@ class AlarmFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        registerTokenWithBackend(token)
+        registerTokenWithBackend(this, token)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -74,9 +76,38 @@ class AlarmFirebaseMessagingService : FirebaseMessagingService() {
             .writeTimeout(10, TimeUnit.SECONDS)
             .build()
 
-        fun registerTokenWithBackend(token: String) {
+        private const val TAG = "FCMRegister"
+
+        /**
+         * Call right after login so this device's FCM token is associated with the user who just signed in.
+         * Fetches current FCM token and registers it with the backend (JWT is already saved).
+         */
+        fun registerTokenAfterLogin(context: Context) {
+            val appContext = context.applicationContext
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (!task.isSuccessful) {
+                    android.util.Log.w(TAG, "FCM token not ready: ${task.exception?.message}")
+                    return@addOnCompleteListener
+                }
+                val token = task.result ?: return@addOnCompleteListener
+                android.util.Log.d(TAG, "Registering FCM token after login (preview ...${token.takeLast(8)})")
+                registerTokenWithBackend(appContext, token)
+            }
+        }
+
+        /**
+         * Register FCM token with backend for the current user's alarm system.
+         * Requires user to be logged in (JWT). Use applicationContext so it works after navigation.
+         */
+        fun registerTokenWithBackend(context: Context, token: String) {
             thread {
                 try {
+                    val appContext = context.applicationContext
+                    val jwt = BackendAuthService.getToken(appContext)
+                    if (jwt.isNullOrBlank()) {
+                        android.util.Log.w(TAG, "FCM register: no JWT (not logged in?), skipping")
+                        return@thread
+                    }
                     val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
                     val url = "$base/api/notifications/register"
                     val body = JSONObject().apply { put("token", token) }.toString()
@@ -85,9 +116,17 @@ class AlarmFirebaseMessagingService : FirebaseMessagingService() {
                         .url(url)
                         .post(body)
                         .addHeader("Content-Type", "application/json")
+                        .addHeader("Authorization", "Bearer $jwt")
                         .build()
-                    client.newCall(request).execute().close()
-                } catch (_: Exception) { /* ignore */ }
+                    val response = client.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        android.util.Log.d(TAG, "FCM register: ok (${response.code})")
+                    } else {
+                        android.util.Log.e(TAG, "FCM register: failed ${response.code} ${response.body?.string()?.take(200)}")
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e(TAG, "FCM register: error", e)
+                }
             }
         }
     }

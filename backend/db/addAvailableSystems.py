@@ -1,4 +1,4 @@
-import connectToDB
+from db import connectToDB
 #hashing
 import bcrypt
 import psycopg2

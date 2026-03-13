@@ -1,0 +1,75 @@
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
+
+from app.config import settings
+from app.models.request_models import (
+    PairUserRequest,
+    ConnectMicrocontrollerRequest,
+    ConnectDeviceRequest,
+)
+from app.models.response_models import SimpleStatusResponse, MicrocontrollerConnectResponse
+from db.connectToAlarmSystem import connectUserToSystem, getCurrentAlarmSystemID
+from db.connectMCtoAlarmSystem import connectMicroController, connect_microcontroller_by_user_id
+
+router = APIRouter()
+security = HTTPBearer(auto_error=False)
+
+
+def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> int:
+    if not credentials or not credentials.credentials:
+        raise HTTPException(status_code=401, detail="Missing authorization")
+    try:
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.jwt_secret,
+            algorithms=["HS256"],
+        )
+        user_id = payload.get("userId")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return int(user_id)
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+@router.post("/api/pair", response_model=SimpleStatusResponse)
+def pair_user(request: PairUserRequest):
+    if not connectUserToSystem(request.username, request.system_password):
+        raise HTTPException(status_code=400, detail="Pairing failed")
+
+    return {"status": "ok"}
+
+
+@router.post("/api/microcontroller/connect", response_model=MicrocontrollerConnectResponse)
+def connect_microcontroller(request: ConnectMicrocontrollerRequest):
+    system_id = getCurrentAlarmSystemID(request.username)
+
+    if system_id is None:
+        raise HTTPException(status_code=400, detail="User not paired")
+
+    if not connectMicroController(
+        microControllerId=request.microcontroller_id,
+        username=request.username
+    ):
+        raise HTTPException(status_code=400, detail="Connection failed")
+
+    return {
+        "status": "ok",
+        "alarm_system_id": system_id
+    }
+
+
+@router.post("/api/device/connect", response_model=MicrocontrollerConnectResponse)
+def connect_device(
+    request: ConnectDeviceRequest,
+    user_id: int = Depends(get_current_user_id),
+):
+    """Link your ESP32 (e.g. esp32_001 = microcontroller_id 1) to your account so real sensor events show in the app."""
+    if not connect_microcontroller_by_user_id(user_id, request.microcontroller_id):
+        raise HTTPException(status_code=400, detail="Could not link device. Try again.")
+    from db.connectToAlarmSystem import get_alarm_system_id_by_user_id
+    alarm_system_id = get_alarm_system_id_by_user_id(user_id)
+    return {"status": "ok", "alarm_system_id": alarm_system_id or 0}

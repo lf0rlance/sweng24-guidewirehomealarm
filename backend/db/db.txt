@@ -29,3 +29,13 @@ returns: random password
 Creates instance of alarm system with id and random password, armed mode and paired are set to false
 takes one argument: cursor of the connection
 returns: tuple with system id and password
+
+#7 getModeBySysId()
+Finds the state of alarm mode for corresponding alarm system 
+takes one argument: system id
+returns: true if system is armed | false if not
+
+#7.1 getModeByUsername()
+Does the same thing as 7, but using username
+takes one argument: username
+returns: true if system is armed | false if not

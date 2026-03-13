@@ -1,4 +1,4 @@
-import connectToDB
+from db import connectToDB
 import psycopg2
 import bcrypt
 from typing import Optional, Dict

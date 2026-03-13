@@ -240,8 +240,25 @@ release-auto:
     git fetch origin main
     git checkout main
 
-    VERSION=$(cat VERSION)
-    IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+    if [ -f VERSION.txt ]; then
+      VERSION_FILE="VERSION.txt"
+      VERSION=$(cat VERSION.txt)
+    elif [ -f VERSION ]; then
+      VERSION_FILE="VERSION"
+      VERSION=$(cat VERSION)
+    else
+      VERSION_FILE="VERSION.txt"
+      VERSION="0.0.0"
+    fi
+
+    echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+      echo "Invalid version format in ${VERSION_FILE}: ${VERSION}"
+      exit 1
+    }
+
+    MAJOR=$(echo "$VERSION" | cut -d. -f1)
+    MINOR=$(echo "$VERSION" | cut -d. -f2)
+    PATCH=$(echo "$VERSION" | cut -d. -f3)
 
     COMMIT_MSG=$(git log -1 --pretty=%B "$CI_COMMIT_SHA")
     if echo "$COMMIT_MSG" | grep -q "BREAKING CHANGE"; then
@@ -260,8 +277,8 @@ release-auto:
     fi
 
     NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-    echo "$NEW_VERSION" > VERSION
-    git add VERSION
+    echo "$NEW_VERSION" > "$VERSION_FILE"
+    git add "$VERSION_FILE"
     git commit -m "chore(release): bump version to $NEW_VERSION [skip ci]"
     git push "https://oauth2:$GITLAB_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git" HEAD:main
 
