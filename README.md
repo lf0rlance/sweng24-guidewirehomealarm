@@ -59,7 +59,7 @@ This week we're going to work on getting a working end to end system, even if it
 | Microcontroller | `microcontroller/` | ESP32, MicroPython |
 
 - **Backend:** `cd backend && py run.py` — API at http://127.0.0.1:5000, docs at `/docs`. See `backend/README.md` and `backend/db/README_SETUP.md`.
-- **Frontend:** Android app; open in Android Studio or build with Gradle.
+- **Frontend:** Android app; open in Android Studio or build with Gradle. In `frontend/local.properties` set `API_BASE_URL` (and optionally `IMAGE_BASE_URL`). Use `http://10.0.2.2:5000/api/` for the **emulator** (10.0.2.2 = host machine). On a **physical device** use your PC’s LAN IP, e.g. `http://192.168.0.x:5000/api/`, and ensure the device and PC are on the same Wi‑Fi.
 - **Microcontroller:** ESP32 firmware in `microcontroller/src/`; see `microcontroller/notes.md`.
 
 ## Proposed Tech Stack

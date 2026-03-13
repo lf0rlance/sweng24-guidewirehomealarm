@@ -23,4 +23,3 @@ def connectToDB():
     except Exception as e:
         print(f"Database connection error: {e}")
         raise Exception(f"Connection unsuccessful: {e}")
-        

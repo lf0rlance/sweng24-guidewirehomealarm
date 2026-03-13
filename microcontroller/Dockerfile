@@ -7,7 +7,6 @@ WORKDIR /app
 RUN pip install --no-cache-dir micropython-esp32-stubs
 
 # Copy source files
-COPY requirements.txt .
 COPY src ./src
 COPY boot.py .
 

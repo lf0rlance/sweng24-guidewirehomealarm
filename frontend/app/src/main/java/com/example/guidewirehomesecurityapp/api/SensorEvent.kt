@@ -16,6 +16,7 @@ data class SensorEvent(
         "door_closed" -> "Door closed"
         "alarm_enabled" -> "Alarm enabled"
         "alarm_disabled" -> "Alarm disabled"
+        "led_toggle" -> "Sensor toggled"
         else -> event_type
     }
 }

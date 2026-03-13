@@ -31,9 +31,9 @@ RUN useradd -m -u 1000 appuser && \
 
 USER appuser
 
-# Health check
+# Health check (adjust endpoint if /ping doesn't exist)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')" || exit 1
+    CMD python -c "import socket; s=socket.socket(); s.connect(('127.0.0.1', 8000)); s.close()" || exit 1
 
 EXPOSE 8000
 
