@@ -57,4 +57,22 @@ def create_alarm_system(cur) -> tuple[int, str]:
 #         conn.close()
 
 
+def create_home_with_device(cur) -> tuple[int, int, str]:
+    """
+    Create one alarm system and one microcontroller (the "home" / ESP32).
+    Returns (alarm_system_id, microcontroller_id, device_id e.g. 'esp32_7').
+    """
+    alarm_system_id, _ = create_alarm_system(cur)
+    cur.execute("SELECT COALESCE(MAX(microcontroller_id), 0) + 1 FROM microcontroller")
+    mc_id = cur.fetchone()[0]
+    cur.execute(
+        """
+        INSERT INTO microcontroller (microcontroller_id, alarm_system_id, current_state)
+        VALUES (%s, %s, 'idle')
+        """,
+        (mc_id, alarm_system_id),
+    )
+    return alarm_system_id, mc_id, f"esp32_{mc_id}"
+
+
 # addAlarmSystems(10)

@@ -5,7 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
+import com.example.guidewirehomesecurityapp.auth.BackendAuthService
 import com.example.guidewirehomesecurityapp.ui.screens.*
+import com.example.guidewirehomesecurityapp.ui.theme.AdminTheme
 import com.example.guidewirehomesecurityapp.ui.theme.LogInTheme
 
 class MainActivity : ComponentActivity() {
@@ -14,6 +16,7 @@ class MainActivity : ComponentActivity() {
         object Splash : AppScreen()
         object Login : AppScreen()
         object Home : AppScreen()
+        object AdminDashboard : AppScreen()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,10 +32,27 @@ class MainActivity : ComponentActivity() {
                         SplashScreen { currentScreen = AppScreen.Login }
                     }
                     AppScreen.Login -> {
-                        LoginScreen(onLoginSuccess = { currentScreen = AppScreen.Home })
+                        LoginScreen(onLoginSuccess = {
+                            currentScreen = if (BackendAuthService.getRole(this) == "admin") {
+                                AppScreen.AdminDashboard
+                            } else {
+                                AppScreen.Home
+                            }
+                        })
                     }
                     AppScreen.Home -> {
-                        HomeScreen(onSignOut = { currentScreen = AppScreen.Login })
+                        HomeScreen(onSignOut = {
+                            BackendAuthService.clearToken(this)
+                            currentScreen = AppScreen.Login
+                        })
+                    }
+                    AppScreen.AdminDashboard -> {
+                        AdminTheme {
+                            AdminDashboardScreen(onSignOut = {
+                                BackendAuthService.clearToken(this)
+                                currentScreen = AppScreen.Login
+                            })
+                        }
                     }
                 }
             }

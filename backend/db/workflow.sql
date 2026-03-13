@@ -7,7 +7,8 @@ CREATE TABLE user_table (
   email VARCHAR(255) UNIQUE NOT NULL,
   alarm_system_id INT,
   password_hash TEXT NOT NULL,
-  role VARCHAR(20),
+  role VARCHAR(20) DEFAULT 'user',
+  phone VARCHAR(30),
   CHECK (role IN ('admin', 'user'))
 );
 
@@ -53,3 +54,17 @@ CREATE INDEX IF NOT EXISTS idx_sensor_events_system_ts
 
 CREATE INDEX IF NOT EXISTS idx_sensor_events_system_type_ts
   ON sensor_events (alarm_system_id, event_type, timestamp DESC);
+
+-- Sensor display names per home (admin sets these; no physical location stored)
+CREATE TABLE IF NOT EXISTS sensor_labels (
+  alarm_system_id INT NOT NULL REFERENCES alarm_system_table (alarm_system_id) ON DELETE CASCADE,
+  position INT NOT NULL,
+  label TEXT NOT NULL,
+  PRIMARY KEY (alarm_system_id, position)
+);
+
+-- Last time we received an event from each device (for offline detection)
+CREATE TABLE IF NOT EXISTS device_last_seen (
+  microcontroller_id INT PRIMARY KEY REFERENCES microcontroller (microcontroller_id) ON DELETE CASCADE,
+  last_seen DOUBLE PRECISION NOT NULL
+);
