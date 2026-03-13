@@ -9,7 +9,8 @@ default:
 
 variables:
   DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
   DOCKER_BUILDKIT: "1"
   BACKEND_IMAGE: $CI_REGISTRY_IMAGE/backend
   FRONTEND_IMAGE: $CI_REGISTRY_IMAGE/frontend
@@ -20,7 +21,9 @@ backend-syntax:
   stage: validate
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false"]
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
@@ -35,7 +38,9 @@ backend-lint:
   stage: validate
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false"]
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
@@ -51,7 +56,9 @@ backend-test:
   stage: validate
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false"]
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
@@ -66,7 +73,9 @@ microcontroller-syntax:
   stage: validate
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false"]
   script:
     - cd microcontroller
     - docker build -t microcontroller-test .
@@ -81,7 +90,9 @@ frontend-build:
   stage: validate
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false"]
   script:
     - cd frontend
     - docker build -t frontend-test .
@@ -96,7 +107,9 @@ build-backend:
   stage: build
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false"]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -112,7 +125,9 @@ build-frontend:
   stage: build
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false"]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -128,7 +143,9 @@ build-microcontroller:
   stage: build
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false"]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
