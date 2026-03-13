@@ -23,7 +23,6 @@ backend-syntax:
   services:
     - name: docker:24-dind
       alias: docker
-      command: ["--tls=false"]
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
@@ -40,7 +39,6 @@ backend-lint:
   services:
     - name: docker:24-dind
       alias: docker
-      command: ["--tls=false"]
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
@@ -58,7 +56,6 @@ backend-test:
   services:
     - name: docker:24-dind
       alias: docker
-      command: ["--tls=false"]
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
@@ -75,7 +72,6 @@ microcontroller-syntax:
   services:
     - name: docker:24-dind
       alias: docker
-      command: ["--tls=false"]
   script:
     - cd microcontroller
     - docker build -t microcontroller-test .
@@ -92,7 +88,6 @@ frontend-build:
   services:
     - name: docker:24-dind
       alias: docker
-      command: ["--tls=false"]
   script:
     - cd frontend
     - docker build -t frontend-test .
@@ -109,7 +104,6 @@ build-backend:
   services:
     - name: docker:24-dind
       alias: docker
-      command: ["--tls=false"]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -127,7 +121,6 @@ build-frontend:
   services:
     - name: docker:24-dind
       alias: docker
-      command: ["--tls=false"]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -145,7 +138,6 @@ build-microcontroller:
   services:
     - name: docker:24-dind
       alias: docker
-      command: ["--tls=false"]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
