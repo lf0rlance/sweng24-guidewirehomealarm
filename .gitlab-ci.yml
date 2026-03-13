@@ -162,8 +162,14 @@ release-dry-run:
       VERSION="0.0.0"
     fi
 
+    VERSION_SOURCE="origin/main:${VERSION_FILE}"
+    if [ -n "${RELEASE_DRY_RUN_CURRENT_VERSION:-}" ]; then
+      VERSION="${RELEASE_DRY_RUN_CURRENT_VERSION}"
+      VERSION_SOURCE="override:RELEASE_DRY_RUN_CURRENT_VERSION"
+    fi
+
     echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
-      echo "Invalid version format in $VERSION_FILE on origin/main: $VERSION"
+      echo "Invalid version format from $VERSION_SOURCE: $VERSION"
       exit 1
     }
     MAJOR=$(echo "$VERSION" | cut -d. -f1)
@@ -192,12 +198,12 @@ release-dry-run:
 
     echo "Dry run only: no commit, push, or tag will be created."
     echo "Branch: ${CI_COMMIT_BRANCH:-unknown}"
-    echo "Version source: origin/main:$VERSION_FILE"
+    echo "Version source: $VERSION_SOURCE"
     echo "Current version: $VERSION"
     echo "Calculated next version: $NEW_VERSION"
     echo "Would create tag: $TAG"
-    printf "version_file=%s\ncurrent_version=%s\nnext_version=%s\ntag=%s\n" \
-      "$VERSION_FILE" "$VERSION" "$NEW_VERSION" "$TAG" > release-preview.txt
+    printf "version_file=%s\nversion_source=%s\ncurrent_version=%s\nnext_version=%s\ntag=%s\n" \
+      "$VERSION_FILE" "$VERSION_SOURCE" "$VERSION" "$NEW_VERSION" "$TAG" > release-preview.txt
   artifacts:
     paths:
       - release-preview.txt
