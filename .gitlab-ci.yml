@@ -7,21 +7,6 @@ default:
   tags:
     - sweng24-docker
 
-.docker-job: &docker-job
-  image:
-    name: docker:24-dind
-    pull_policy: if-not-present
-  services:
-    - name: docker:24-dind
-      alias: docker
-      pull_policy: if-not-present
-      command: ["--tls=false", "--dns", "192.168.65.7"]
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
-
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_HOST: tcp://docker:2375
@@ -34,7 +19,11 @@ variables:
 # Backend validation using Docker container
 backend-syntax:
   stage: validate
-  <<: *docker-job
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
@@ -47,7 +36,11 @@ backend-syntax:
 # Lint for code quality using Docker
 backend-lint:
   stage: validate
-  <<: *docker-job
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
@@ -60,7 +53,11 @@ backend-lint:
 # Backend tests using Docker container
 backend-test:
   stage: validate
-  <<: *docker-job
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
@@ -73,7 +70,11 @@ backend-test:
 # Microcontroller validation using Docker container
 microcontroller-syntax:
   stage: validate
-  <<: *docker-job
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   script:
     - cd microcontroller
     - docker build -t microcontroller-test .
@@ -85,7 +86,11 @@ microcontroller-syntax:
 # Frontend build and test using Docker container
 frontend-build:
   stage: validate
-  <<: *docker-job
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   script:
     - cd frontend
     - docker build -t frontend-test .
@@ -97,7 +102,11 @@ frontend-build:
 # Build Docker image
 build-backend:
   stage: build
-  <<: *docker-job
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -111,7 +120,11 @@ build-backend:
 # Build frontend Docker image
 build-frontend:
   stage: build
-  <<: *docker-job
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -125,7 +138,11 @@ build-frontend:
 # Build microcontroller Docker image
 build-microcontroller:
   stage: build
-  <<: *docker-job
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
