@@ -7,7 +7,8 @@ WORKDIR /build
 COPY requirements.txt .
 ENV PIP_DEFAULT_TIMEOUT=300
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
-RUN pip install --no-cache-dir --retries 10 --timeout 300 -r requirements.txt
+#RUN pip install --no-cache-dir --retries 10 --timeout 300 -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Final stage
 FROM python:3.11-slim
