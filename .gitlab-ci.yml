@@ -44,8 +44,7 @@ backend-lint:
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
-    - docker run --rm backend-test sh -c "pip install flake8 && flake8 app/ --max-line-length=120 --exclude=__pycache__,*.pyc"
-  allow_failure: true
+    - docker run --rm backend-test sh -c "pip install flake8 && flake8 app/ --max-line-length=120 --exclude=__pycache__,*.pyc --exit-zero"
   only:
     - merge_requests
     - main
