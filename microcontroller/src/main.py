@@ -2,6 +2,7 @@ import machine
 import time
 import wifi
 import config
+
 from events import EventManager
 
 # wifi setup
@@ -10,9 +11,10 @@ if config.WIFI_MODE == "AP":
     print("ESP32 IP: " + esp_ip)
 else:
     if wifi.connect(config.WIFI_SSID, config.WIFI_PASSWORD):
-        print("WiFi connected successfully")
+        print("WiFi connected successfully" )
     else:
         print("WiFi connection failed")
+
 
 led = machine.Pin(2, machine.Pin.OUT)
 reed = machine.Pin(4, machine.Pin.IN, machine.Pin.PULL_UP)
