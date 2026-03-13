@@ -27,7 +27,7 @@ backend-syntax:
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
-    - docker run --rm backend-test python -m py_compile app/*.py *.py
+    - docker run --rm backend-test python -m compileall -q app run.py
   only:
     - merge_requests
     - main
@@ -62,7 +62,7 @@ backend-test:
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
-    - docker run --rm backend-test sh -c "pip install pytest pytest-cov httpx && pytest tests/ -v"
+    - docker run --rm backend-test sh -c "pip install pytest pytest-cov httpx && pytest unit_tests/ -v"
   only:
     - merge_requests
     - main

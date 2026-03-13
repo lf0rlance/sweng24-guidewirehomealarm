@@ -10,6 +10,9 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 #RUN pip install --no-cache-dir --retries 10 --timeout 300 -r requirements.txt
 RUN pip install -r requirements.txt
 
+# Include source in builder so CI jobs using --target builder can lint/test code.
+COPY . .
+
 # Final stage
 FROM python:3.11-slim
 
