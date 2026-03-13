@@ -3,6 +3,7 @@ package com.example.guidewirehomesecurityapp.auth
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import com.example.guidewirehomesecurityapp.BuildConfig
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.result.ActivityResult
 import androidx.credentials.CredentialManager
@@ -61,10 +62,11 @@ class GoogleSignInUtils {
         }
 
         fun getCredentialOptions(context: Context): CredentialOption {
+            // Server client ID from frontend/local.properties (GOOGLE_CLIENT_ID) via BuildConfig
             return GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
                 .setAutoSelectEnabled(false)
-                .setServerClientId(context.getString(com.example.guidewirehomesecurityapp.R.string.web_client_id))
+                .setServerClientId(BuildConfig.GOOGLE_CLIENT_ID)
                 .build()
         }
     }

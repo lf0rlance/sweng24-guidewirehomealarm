@@ -1,66 +1,27 @@
+# OS
+.DS_Store
+Thumbs.db
+
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Node
+node_modules/
+**/node_modules/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-*.env
-.env
-.env.local
-.venv
-venv/
-ENV/
-env/
+**/dist/
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.hypothesis/
-*.cover
-.cache
-
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Docker
-*.log
-
-# Secrets
-*.pem
-*.key
-credentials.json
-firebase-credentials.json
-google-services.json
-
-# Temporary files
-*.tmp
-*.bak
-*.orig
+# Android / Gradle
+/frontend/build/
+/frontend/app/build/
+/frontend/.gradle/
+local.properties
+**/local.properties
+.externalNativeBuild/
+**/.externalNativeBuild/
+.cxx/
+**/.cxx/
+gradlew

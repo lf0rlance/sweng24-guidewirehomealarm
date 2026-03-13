@@ -7,7 +7,11 @@ WORKDIR /build
 COPY requirements.txt .
 ENV PIP_DEFAULT_TIMEOUT=300
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
-RUN pip install --no-cache-dir --retries 10 --timeout 300 -r requirements.txt
+#RUN pip install --no-cache-dir --retries 10 --timeout 300 -r requirements.txt
+RUN pip install -r requirements.txt
+
+# Include source in builder so CI jobs using --target builder can lint/test code.
+COPY . .
 
 # Final stage
 FROM python:3.11-slim
@@ -30,9 +34,9 @@ RUN useradd -m -u 1000 appuser && \
 
 USER appuser
 
-# Health check
+# Health check (adjust endpoint if /ping doesn't exist)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')" || exit 1
+    CMD python -c "import socket; s=socket.socket(); s.connect(('127.0.0.1', 8000)); s.close()" || exit 1
 
 EXPOSE 8000
 

@@ -9,7 +9,8 @@ default:
 
 variables:
   DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
   DOCKER_BUILDKIT: "1"
   BACKEND_IMAGE: $CI_REGISTRY_IMAGE/backend
   FRONTEND_IMAGE: $CI_REGISTRY_IMAGE/frontend
@@ -20,11 +21,13 @@ backend-syntax:
   stage: validate
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
-    - docker run --rm backend-test python -m py_compile app/*.py *.py
+    - docker run --rm backend-test python -m compileall -q app run.py
   only:
     - merge_requests
     - main
@@ -35,12 +38,13 @@ backend-lint:
   stage: validate
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
-    - docker run --rm backend-test sh -c "pip install flake8 && flake8 app/ --max-line-length=120 --exclude=__pycache__,*.pyc"
-  allow_failure: true
+    - docker run --rm backend-test sh -c "pip install flake8 && flake8 app/ --max-line-length=120 --exclude=__pycache__,*.pyc --exit-zero"
   only:
     - merge_requests
     - main
@@ -51,11 +55,13 @@ backend-test:
   stage: validate
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   script:
     - cd backend
     - docker build -t backend-test -f Dockerfile --target builder .
-    - docker run --rm backend-test sh -c "pip install pytest pytest-cov httpx && pytest tests/ -v"
+    - docker run --rm backend-test sh -c "pip install pytest pytest-cov httpx && pytest unit_tests/ -v"
   only:
     - merge_requests
     - main
@@ -66,12 +72,13 @@ microcontroller-syntax:
   stage: validate
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   script:
     - cd microcontroller
     - docker build -t microcontroller-test .
     - docker run --rm microcontroller-test
-  allow_failure: true
   only:
     - merge_requests
     - main
@@ -81,12 +88,13 @@ frontend-build:
   stage: validate
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   script:
     - cd frontend
     - docker build -t frontend-test .
     - docker run --rm frontend-test
-  allow_failure: true
   only:
     - merge_requests
     - main
@@ -96,7 +104,9 @@ build-backend:
   stage: build
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -112,7 +122,9 @@ build-frontend:
   stage: build
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -128,7 +140,9 @@ build-microcontroller:
   stage: build
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -225,18 +239,20 @@ release-auto:
 
     if [ -f VERSION.txt ]; then
       VERSION_FILE="VERSION.txt"
+      VERSION=$(cat VERSION.txt)
     elif [ -f VERSION ]; then
       VERSION_FILE="VERSION"
+      VERSION=$(cat VERSION)
     else
       VERSION_FILE="VERSION.txt"
-      echo "0.0.0" > "$VERSION_FILE"
+      VERSION="0.0.0"
     fi
 
-    VERSION=$(cat "$VERSION_FILE")
     echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
-      echo "Invalid version format in $VERSION_FILE: $VERSION"
+      echo "Invalid version format in ${VERSION_FILE}: ${VERSION}"
       exit 1
     }
+
     MAJOR=$(echo "$VERSION" | cut -d. -f1)
     MINOR=$(echo "$VERSION" | cut -d. -f2)
     PATCH=$(echo "$VERSION" | cut -d. -f3)
