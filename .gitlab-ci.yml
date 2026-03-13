@@ -135,6 +135,70 @@ build-microcontroller:
     - main
   when: manual
 
+# Manual release preview without mutating the repository
+release-dry-run:
+  stage: release
+  image: alpine:3.20
+  rules:
+    - if: $CI_COMMIT_BRANCH
+      when: manual
+  script: |
+    set -e
+    apk add --no-cache git
+    git fetch origin main
+
+    if git cat-file -e origin/main:VERSION.txt 2>/dev/null; then
+      VERSION_FILE="VERSION.txt"
+      VERSION=$(git show origin/main:VERSION.txt)
+    elif git cat-file -e origin/main:VERSION 2>/dev/null; then
+      VERSION_FILE="VERSION"
+      VERSION=$(git show origin/main:VERSION)
+    else
+      VERSION_FILE="VERSION.txt"
+      VERSION="0.0.0"
+    fi
+
+    echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+      echo "Invalid version format in $VERSION_FILE on origin/main: $VERSION"
+      exit 1
+    }
+    MAJOR=$(echo "$VERSION" | cut -d. -f1)
+    MINOR=$(echo "$VERSION" | cut -d. -f2)
+    PATCH=$(echo "$VERSION" | cut -d. -f3)
+
+    COMMIT_REF="${CI_COMMIT_SHA:-HEAD}"
+    COMMIT_MSG=$(git log -1 --pretty=%B "$COMMIT_REF")
+    if echo "$COMMIT_MSG" | grep -q "BREAKING CHANGE"; then
+      MAJOR=$((MAJOR + 1))
+      MINOR=0
+      PATCH=0
+    elif echo "$COMMIT_MSG" | grep -q "!:"; then
+      MAJOR=$((MAJOR + 1))
+      MINOR=0
+      PATCH=0
+    elif echo "$COMMIT_MSG" | grep -q "^feat"; then
+      MINOR=$((MINOR + 1))
+      PATCH=0
+    else
+      PATCH=$((PATCH + 1))
+    fi
+
+    NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+    TAG="v${NEW_VERSION}"
+
+    echo "Dry run only: no commit, push, or tag will be created."
+    echo "Branch: ${CI_COMMIT_BRANCH:-unknown}"
+    echo "Version source: origin/main:$VERSION_FILE"
+    echo "Current version: $VERSION"
+    echo "Calculated next version: $NEW_VERSION"
+    echo "Would create tag: $TAG"
+    printf "version_file=%s\ncurrent_version=%s\nnext_version=%s\ntag=%s\n" \
+      "$VERSION_FILE" "$VERSION" "$NEW_VERSION" "$TAG" > release-preview.txt
+  artifacts:
+    paths:
+      - release-preview.txt
+    expire_in: 1 week
+
 # Automated version bump + tag
 release-auto:
   stage: release
@@ -149,8 +213,23 @@ release-auto:
     git fetch origin main
     git checkout main
 
-    VERSION=$(cat VERSION)
-    IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+    if [ -f VERSION.txt ]; then
+      VERSION_FILE="VERSION.txt"
+    elif [ -f VERSION ]; then
+      VERSION_FILE="VERSION"
+    else
+      VERSION_FILE="VERSION.txt"
+      echo "0.0.0" > "$VERSION_FILE"
+    fi
+
+    VERSION=$(cat "$VERSION_FILE")
+    echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+      echo "Invalid version format in $VERSION_FILE: $VERSION"
+      exit 1
+    }
+    MAJOR=$(echo "$VERSION" | cut -d. -f1)
+    MINOR=$(echo "$VERSION" | cut -d. -f2)
+    PATCH=$(echo "$VERSION" | cut -d. -f3)
 
     COMMIT_MSG=$(git log -1 --pretty=%B "$CI_COMMIT_SHA")
     if echo "$COMMIT_MSG" | grep -q "BREAKING CHANGE"; then
@@ -169,8 +248,8 @@ release-auto:
     fi
 
     NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-    echo "$NEW_VERSION" > VERSION
-    git add VERSION
+    echo "$NEW_VERSION" > "$VERSION_FILE"
+    git add "$VERSION_FILE"
     git commit -m "chore(release): bump version to $NEW_VERSION [skip ci]"
     git push "https://oauth2:$GITLAB_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git" HEAD:main
 
