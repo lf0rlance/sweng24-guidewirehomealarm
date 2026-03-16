@@ -37,15 +37,15 @@ class ValidateData(BaseModel):
     timestamp: float
 
     #validation for timestamp
-    #@field_validator("timestamp")
+    @field_validator("timestamp")
     def validate_unix_timestamp(cls, value: int) -> int:
         #get current time in unix
         now = int(time.time())
         #account for delay +- 3 min
         max_delay = 180 #seconds
-        if(abs(now-value) > max_delay or abs(now-value) <= max_delay ):
+        if abs(now-value) > max_delay:
             raise ValueError(
-                f"timestamp {value} is {abs(now-value)}seconds away from current time stamp.\n Maximum delay allowed is{max_delay}"
+                f"timestamp {value} is {abs(now-value)} seconds away from current time stamp. Maximum delay allowed is {max_delay}"
             )
         return value
 
