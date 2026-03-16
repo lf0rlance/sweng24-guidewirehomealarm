@@ -272,6 +272,3 @@ release-auto:
     echo "Current version: $VERSION -> New version: $NEW_VERSION (tag: $TAG)"
     git tag "$TAG" "$CI_COMMIT_SHA"
     git push "https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" "$TAG"
-
-    glpat-x5lKKo3T3UpvdyWdgOpA0G86MQp1OjNkbwk.01.0z1799q03
-    
