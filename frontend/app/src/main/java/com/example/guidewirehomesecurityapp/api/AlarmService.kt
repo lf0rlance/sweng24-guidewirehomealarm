@@ -53,10 +53,15 @@ object AlarmService {
      * PUT /api/alarm — set armed state. Call from background thread.
      * @return true = success, false = failure
      */
-    fun setArmedStatus(context: Context, armed: Boolean): Boolean {
+    fun setArmedStatus(context: Context, armed: Boolean, disarmCode: String? = null): Boolean {
         val url = "${serverBaseUrl()}/api/alarm"
         val token = BackendAuthService.getToken(context) ?: return false
-        val body = JSONObject().apply { put("armed", armed) }
+        val body = JSONObject().apply {
+            put("armed", armed)
+            if (!armed && !disarmCode.isNullOrBlank()) {
+                put("disarm_code", disarmCode.trim())
+            }
+        }
             .toString()
             .toRequestBody("application/json".toMediaType())
         val request = Request.Builder()

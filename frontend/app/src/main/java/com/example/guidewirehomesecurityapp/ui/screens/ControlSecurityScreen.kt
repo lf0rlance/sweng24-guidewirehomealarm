@@ -11,10 +11,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,12 +39,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ControlSecurityScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var systemArmed by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    var pendingToggleTarget by remember { mutableStateOf<Boolean?>(null) }
+    var showDisarmCodeDialog by remember { mutableStateOf(false) }
+    var disarmCode by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         loading = true
@@ -60,6 +72,69 @@ fun ControlSecurityScreen(modifier: Modifier = Modifier) {
             .padding(20.dp)
             .verticalScroll(scrollState)
     ) {
+        SnackbarHost(hostState = snackbarHostState)
+
+        if (showDisarmCodeDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showDisarmCodeDialog = false
+                    pendingToggleTarget = null
+                    disarmCode = ""
+                },
+                title = { Text("Disarm requires a code") },
+                text = {
+                    Column {
+                        Text("Enter the one-time disarm code provided by the homeowner/admin.")
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = disarmCode,
+                            onValueChange = { disarmCode = it },
+                            label = { Text("Disarm code") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val target = pendingToggleTarget
+                            if (target == null) {
+                                showDisarmCodeDialog = false
+                                disarmCode = ""
+                                return@TextButton
+                            }
+                            showDisarmCodeDialog = false
+                            loading = true
+                            scope.launch {
+                                val ok = withContext(Dispatchers.IO) {
+                                    AlarmService.setArmedStatus(context, target, disarmCode = disarmCode)
+                                }
+                                loading = false
+                                if (ok) {
+                                    systemArmed = target
+                                } else {
+                                    systemArmed = !target
+                                    snackbarHostState.showSnackbar("Could not disarm (invalid/expired code or no permission).")
+                                }
+                                pendingToggleTarget = null
+                                disarmCode = ""
+                            }
+                        }
+                    ) { Text("Disarm") }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showDisarmCodeDialog = false
+                            pendingToggleTarget = null
+                            disarmCode = ""
+                        }
+                    ) { Text("Cancel") }
+                }
+            )
+        }
+
         ScreenTitleWithLogo(
             title = "System control",
             modifier = Modifier.padding(bottom = 8.dp),
@@ -100,12 +175,26 @@ fun ControlSecurityScreen(modifier: Modifier = Modifier) {
                 Switch(
                     checked = systemArmed,
                     onCheckedChange = { newValue ->
+                        val previous = systemArmed
                         systemArmed = newValue
+                        loading = true
                         scope.launch {
                             val ok = withContext(Dispatchers.IO) {
                                 AlarmService.setArmedStatus(context, newValue)
                             }
-                            if (!ok) systemArmed = !newValue
+                            loading = false
+                            if (ok) return@launch
+
+                            // Revert while we decide next step.
+                            systemArmed = previous
+
+                            if (!newValue) {
+                                // Disarm failed: prompt for one-time code.
+                                pendingToggleTarget = false
+                                showDisarmCodeDialog = true
+                            } else {
+                                snackbarHostState.showSnackbar("Could not arm (no permission).")
+                            }
                         }
                     },
                     enabled = !loading,

@@ -9,7 +9,7 @@ fcm_tokens_by_system: Dict[int, Set[str]] = {}
 _firebase_initialized = False
 
 
-def register_fcm_token(alarm_system_id: int, token: str):
+def register_fcm_token(alarm_system_id: int, token: str, user_id: Optional[int] = None):
     # Remove token from any other system (one device = one system)
     for sid, tokens in list(fcm_tokens_by_system.items()):
         tokens.discard(token)
@@ -17,7 +17,7 @@ def register_fcm_token(alarm_system_id: int, token: str):
     # Persist so tokens survive backend restart
     try:
         from db.fcm_tokens import save_fcm_token
-        if save_fcm_token(alarm_system_id, token):
+        if save_fcm_token(alarm_system_id, token, user_id=user_id):
             print(f"FCM token saved for alarm_system_id={alarm_system_id} (preview ...{token[-8:]})")
     except Exception as e:
         print(f"FCM token persist failed: {e}")
@@ -91,7 +91,22 @@ def send_push_for_event(event_dict: Dict[str, Any], alarm_system_id: Optional[in
         print(f"Push skipped: event {event_type} from {event_dict.get('device_id')} has no alarm_system_id (link ESP32 in app Settings)")
         return
 
-    tokens = _get_tokens_for_system(alarm_system_id)
+    # If we know user-scoped memberships, only notify members who are allowed to receive notifications.
+    tokens: List[str] = []
+    try:
+        from db import access_control
+        from db.fcm_tokens import get_fcm_tokens_for_users
+
+        members = access_control.list_members(alarm_system_id)
+        allowed_user_ids = [
+            int(m["user_id"]) for m in members if bool(m.get("can_receive_notifications"))
+        ]
+        tokens = get_fcm_tokens_for_users(alarm_system_id, allowed_user_ids)
+        if not tokens:
+            # Backward compatibility: if tokens are not user-scoped yet, fall back to system tokens.
+            tokens = _get_tokens_for_system(alarm_system_id)
+    except Exception:
+        tokens = _get_tokens_for_system(alarm_system_id)
     if not tokens:
         print(f"Push skipped: no FCM tokens for alarm_system_id={alarm_system_id} (open app while logged in to register)")
         return

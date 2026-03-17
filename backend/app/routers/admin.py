@@ -12,9 +12,11 @@ from app.models.request_models import (
     NotifyHomeownerRequest,
     UpdateAlarmSystemRequest,
     UpdateUserRequest,
+    LinkExistingUserToHomeRequest,
 )
 from app.services.notification_service import send_notification_to_system
 from db import admin_queries
+from db import access_control
 from db.device_last_seen import get_offline_devices
 from db.sensor_labels import set_sensor_labels, get_sensor_labels
 from db.insertIntoDB import insert_user_by_admin, update_user_by_admin, unlink_user_from_home
@@ -97,7 +99,7 @@ def add_user_to_home(
     body: AddUserToHomeRequest,
     _: Annotated[dict, Depends(get_current_admin)],
 ):
-    """Create a homeowner user for this home (they log in with email/password)."""
+    """Create a homeowner user for this home (they log in with email/password). Admin sets access_level."""
     if not insert_user_by_admin(
         username=body.username.strip(),
         email=body.email.strip().lower(),
@@ -106,7 +108,31 @@ def add_user_to_home(
         phone=body.phone.strip() if body.phone else None,
     ):
         raise HTTPException(status_code=400, detail="User already exists or invalid data")
+    user_id = admin_queries.get_user_id_by_email(body.email)
+    if user_id is not None:
+        access_control.upsert_membership(user_id, alarm_system_id, body.access_level or "owner")
     return {"status": "ok", "message": "User created"}
+
+
+@router.post("/homes/{alarm_system_id}/users/link")
+def link_existing_user_to_home(
+    alarm_system_id: int,
+    body: LinkExistingUserToHomeRequest,
+    _: Annotated[dict, Depends(get_current_admin)],
+):
+    """
+    Link an existing DB account to this home and set their access_level.
+    Body: { "email": "...", "access_level": "child" } OR { "user_id": 123, "access_level": "arm_only" }.
+    """
+    linked_user_id = admin_queries.link_existing_user_to_home(
+        alarm_system_id=alarm_system_id,
+        user_id=body.user_id,
+        email=(body.email.strip().lower() if body.email else None),
+    )
+    if linked_user_id is None:
+        raise HTTPException(status_code=400, detail="Could not link user (not found or already linked to another home)")
+    access_control.upsert_membership(linked_user_id, alarm_system_id, body.access_level or "owner")
+    return {"status": "ok", "message": "User linked"}
 
 
 @router.put("/homes/{alarm_system_id}/users/{user_id}")
@@ -126,6 +152,8 @@ def update_user_in_home(
         password=body.password,
     ):
         raise HTTPException(status_code=400, detail="User not found or invalid data")
+    if body.access_level is not None:
+        access_control.upsert_membership(user_id, alarm_system_id, body.access_level)
     return {"status": "ok"}
 
 
@@ -138,6 +166,10 @@ def remove_user_from_home(
     """Remove user from this home (unlink; does not delete account)."""
     if not unlink_user_from_home(user_id, alarm_system_id):
         raise HTTPException(status_code=404, detail="User not found in this home")
+    try:
+        access_control.remove_membership(user_id, alarm_system_id)
+    except Exception:
+        pass
     return {"status": "ok"}
 
 

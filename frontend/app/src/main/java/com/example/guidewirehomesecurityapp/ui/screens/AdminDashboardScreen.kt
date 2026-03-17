@@ -38,6 +38,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -461,6 +463,7 @@ private fun UsersDialog(
     var users by remember(home.alarmSystemId) { mutableStateOf<List<AdminService.HomeUser>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var showAddForm by remember { mutableStateOf(false) }
+    var showLinkForm by remember { mutableStateOf(false) }
     var editUser by remember { mutableStateOf<AdminService.HomeUser?>(null) }
     var removeConfirmUser by remember { mutableStateOf<AdminService.HomeUser?>(null) }
     val context = LocalContext.current
@@ -484,7 +487,7 @@ private fun UsersDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("${u.username} (${u.email})", style = MaterialTheme.typography.bodyMedium)
+                            Text("${u.username} (${u.email}) · ${u.accessLevel}", style = MaterialTheme.typography.bodyMedium)
                             Row {
                                 IconButton(onClick = { editUser = u }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Edit")
@@ -497,10 +500,10 @@ private fun UsersDialog(
                     }
                     if (showAddForm) {
                         AddUserForm(
-                            onAdd = { username, email, password, phone ->
+                            onAdd = { username, email, password, phone, accessLevel ->
                                 scope.launch {
                                     val ok = withContext(Dispatchers.IO) {
-                                        AdminService.addUser(context, home.alarmSystemId, username, email, password, phone)
+                                        AdminService.addUser(context, home.alarmSystemId, username, email, password, phone, accessLevel)
                                     }
                                     if (ok) {
                                         onUserAdded()
@@ -514,8 +517,30 @@ private fun UsersDialog(
                             },
                             onCancel = { showAddForm = false }
                         )
+                    } else if (showLinkForm) {
+                        LinkExistingUserForm(
+                            onLink = { email, accessLevel ->
+                                scope.launch {
+                                    val ok = withContext(Dispatchers.IO) {
+                                        AdminService.linkExistingUser(context, home.alarmSystemId, email, accessLevel)
+                                    }
+                                    if (ok) {
+                                        onUserAdded()
+                                        showLinkForm = false
+                                        users = withContext(Dispatchers.IO) { AdminService.listUsers(context, home.alarmSystemId) }
+                                        Toast.makeText(context, "User linked", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Failed (user not found or linked elsewhere)", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            onCancel = { showLinkForm = false }
+                        )
                     } else {
-                        TextButton(onClick = { showAddForm = true }) { Text("Add user") }
+                        Row {
+                            TextButton(onClick = { showAddForm = true }) { Text("Create new") }
+                            TextButton(onClick = { showLinkForm = true }) { Text("Add existing") }
+                        }
                     }
                 }
             }
@@ -528,6 +553,7 @@ private fun UsersDialog(
         var email by remember(u.id) { mutableStateOf(u.email) }
         var phone by remember(u.id) { mutableStateOf(u.phone) }
         var password by remember(u.id) { mutableStateOf("") }
+        var accessLevel by remember(u.id) { mutableStateOf(u.accessLevel.ifBlank { "owner" }) }
         AlertDialog(
             onDismissRequest = { editUser = null },
             title = { Text("Edit user") },
@@ -540,13 +566,24 @@ private fun UsersDialog(
                     OutlinedTextField(value = phone, onValueChange = { phone = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Phone") })
                     Spacer(Modifier.height(4.dp))
                     OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("New password (optional)") })
+                    Spacer(Modifier.height(8.dp))
+                    AccessLevelPicker(value = accessLevel, onValueChange = { accessLevel = it })
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
                         val ok = withContext(Dispatchers.IO) {
-                            AdminService.updateUser(context, home.alarmSystemId, u.id, username, email, phone, password.takeIf { it.isNotBlank() })
+                            AdminService.updateUser(
+                                context,
+                                home.alarmSystemId,
+                                u.id,
+                                username,
+                                email,
+                                phone,
+                                password.takeIf { it.isNotBlank() },
+                                accessLevel
+                            )
                         }
                         editUser = null
                         if (ok) {
@@ -586,13 +623,14 @@ private fun UsersDialog(
 
 @Composable
 private fun AddUserForm(
-    onAdd: (username: String, email: String, password: String, phone: String?) -> Unit,
+    onAdd: (username: String, email: String, password: String, phone: String?, accessLevel: String) -> Unit,
     onCancel: () -> Unit
 ) {
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+    var accessLevel by remember { mutableStateOf("owner") }
     Column {
         OutlinedTextField(
             value = username,
@@ -625,9 +663,70 @@ private fun AddUserForm(
             singleLine = true,
             label = { Text("Phone (optional)") }
         )
+        Spacer(Modifier.height(8.dp))
+        AccessLevelPicker(value = accessLevel, onValueChange = { accessLevel = it })
         Row {
-            TextButton(onClick = { onAdd(username, email, password, phone.takeIf { it.isNotBlank() }) }) { Text("Create") }
+            TextButton(onClick = { onAdd(username, email, password, phone.takeIf { it.isNotBlank() }, accessLevel) }) { Text("Create") }
             TextButton(onClick = onCancel) { Text("Cancel") }
+        }
+    }
+}
+
+@Composable
+private fun LinkExistingUserForm(
+    onLink: (email: String, accessLevel: String) -> Unit,
+    onCancel: () -> Unit
+) {
+    var email by remember { mutableStateOf("") }
+    var accessLevel by remember { mutableStateOf("owner") }
+    Column {
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Existing user's email") }
+        )
+        Spacer(Modifier.height(8.dp))
+        AccessLevelPicker(value = accessLevel, onValueChange = { accessLevel = it })
+        Row {
+            TextButton(onClick = { onLink(email, accessLevel) }) { Text("Link") }
+            TextButton(onClick = onCancel) { Text("Cancel") }
+        }
+    }
+}
+
+@Composable
+private fun AccessLevelPicker(
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    val options = listOf("owner", "trusted_full", "child", "arm_only", "viewer")
+    var expanded by remember { mutableStateOf(false) }
+    Column {
+        Text("Access level", style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(4.dp))
+        OutlinedTextField(
+            value = value,
+            onValueChange = { },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            readOnly = true,
+            label = { Text("Role") },
+            trailingIcon = {
+                TextButton(onClick = { expanded = true }) { Text("Change") }
+            }
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { opt ->
+                DropdownMenuItem(
+                    text = { Text(opt) },
+                    onClick = {
+                        onValueChange(opt)
+                        expanded = false
+                    }
+                )
+            }
         }
     }
 }

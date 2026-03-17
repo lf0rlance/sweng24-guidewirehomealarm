@@ -5,6 +5,7 @@ from db import connectToDB
 from db.addAvailableSystems import create_home_with_device
 from db.device_last_seen import get_all_last_seen, get_offline_devices
 from db.sensor_labels import get_sensor_labels
+from db import access_control
 
 
 def list_homes() -> List[dict]:
@@ -167,17 +168,103 @@ def list_users_for_home(alarm_system_id: int) -> List[dict]:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, username, email, COALESCE(phone, '') as phone, role
-            FROM user_table
-            WHERE alarm_system_id = %s
-            ORDER BY id
+            SELECT
+              u.id, u.username, u.email, COALESCE(u.phone, '') as phone, u.role,
+              COALESCE(m.access_level, '') as access_level,
+              COALESCE(m.can_arm, FALSE) as can_arm,
+              COALESCE(m.can_disarm, FALSE) as can_disarm,
+              COALESCE(m.can_view_events, FALSE) as can_view_events,
+              COALESCE(m.can_receive_notifications, FALSE) as can_receive_notifications,
+              COALESCE(m.can_manage_users, FALSE) as can_manage_users
+            FROM user_table u
+            LEFT JOIN alarm_system_memberships m
+              ON m.user_id = u.id AND m.alarm_system_id = %s
+            WHERE u.alarm_system_id = %s
+            ORDER BY u.id
             """,
-            (alarm_system_id,),
+            (alarm_system_id, alarm_system_id),
         )
-        return [
-            {"id": r[0], "username": r[1], "email": r[2], "phone": r[3], "role": r[4]}
-            for r in cur.fetchall()
-        ]
+        rows = cur.fetchall()
+        out = []
+        for r in rows:
+            out.append(
+                {
+                    "id": r[0],
+                    "username": r[1],
+                    "email": r[2],
+                    "phone": r[3],
+                    "role": r[4],
+                    "access_level": r[5],
+                    "can_arm": bool(r[6]),
+                    "can_disarm": bool(r[7]),
+                    "can_view_events": bool(r[8]),
+                    "can_receive_notifications": bool(r[9]),
+                    "can_manage_users": bool(r[10]),
+                }
+            )
+        return out
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def get_user_id_by_email(email: str) -> Optional[int]:
+    conn = connectToDB.connectToDB()
+    if conn is None:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM user_table WHERE email = %s", (email.strip().lower(),))
+        row = cur.fetchone()
+        return int(row[0]) if row else None
+    except Exception:
+        return None
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def link_existing_user_to_home(alarm_system_id: int, user_id: Optional[int] = None, email: Optional[str] = None) -> Optional[int]:
+    """
+    Link an existing user account to a home by setting user_table.alarm_system_id.
+    Returns linked user_id on success.
+    Fails if the user doesn't exist or is already linked to a different home.
+    """
+    if user_id is None:
+        if not email:
+            return None
+        user_id = get_user_id_by_email(email)
+    if user_id is None:
+        return None
+    conn = connectToDB.connectToDB()
+    if conn is None:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT alarm_system_id FROM user_table WHERE id = %s", (int(user_id),))
+        row = cur.fetchone()
+        if not row:
+            conn.rollback()
+            return None
+        current = row[0]
+        if current is not None and int(current) != int(alarm_system_id):
+            conn.rollback()
+            # already linked elsewhere; don't silently move
+            return None
+        cur.execute(
+            "UPDATE user_table SET alarm_system_id = %s WHERE id = %s",
+            (int(alarm_system_id), int(user_id)),
+        )
+        conn.commit()
+        return int(user_id)
+    except Exception as e:
+        conn.rollback()
+        print(f"link_existing_user_to_home failed: {e}")
+        return None
     finally:
         try:
             conn.close()

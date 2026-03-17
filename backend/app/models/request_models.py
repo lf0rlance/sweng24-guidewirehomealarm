@@ -50,6 +50,7 @@ class AddUserToHomeRequest(BaseModel):
     email: str
     password: str
     phone: str | None = None
+    access_level: str = "owner"  # owner, trusted_full, child, arm_only, viewer, etc.
 
 
 class NotifyHomeownerRequest(BaseModel):
@@ -66,3 +67,11 @@ class UpdateUserRequest(BaseModel):
     email: str | None = None
     phone: str | None = None
     password: str | None = None
+    access_level: str | None = None
+
+
+class LinkExistingUserToHomeRequest(BaseModel):
+    """Admin: link an existing account to a home (no new account created)."""
+    email: str | None = None
+    user_id: int | None = None
+    access_level: str = "owner"

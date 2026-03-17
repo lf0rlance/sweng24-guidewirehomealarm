@@ -17,6 +17,7 @@ from app.services.event_service import (
 from db.events import save_event, get_events_for_system
 from db.device_last_seen import update_last_seen
 from app.services.notification_service import send_push_for_event
+from db import access_control
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
@@ -94,6 +95,9 @@ def get_events(user_id: int = Depends(get_current_user_id)):
 
     if alarm_system_id is None:
         return []
+    membership = access_control.get_membership(user_id, alarm_system_id)
+    if membership is None or not membership.can_view_events:
+        return []
 
     # Load from DB so history includes past events, not just this-process memory.
     events = get_events_for_system(alarm_system_id, armed_only=True)
@@ -104,6 +108,11 @@ def get_events(user_id: int = Depends(get_current_user_id)):
 @router.get("/events/stream")
 async def stream_events(user_id: int = Depends(get_current_user_id)):
     alarm_system_id = get_alarm_system_id_for_user(user_id)
+    if alarm_system_id is None:
+        raise HTTPException(status_code=400, detail="No alarm system linked")
+    membership = access_control.get_membership(user_id, alarm_system_id)
+    if membership is None or not membership.can_view_events:
+        raise HTTPException(status_code=403, detail="Not allowed to view events")
 
     queue: asyncio.Queue = asyncio.Queue()
     entry = (queue, alarm_system_id)
