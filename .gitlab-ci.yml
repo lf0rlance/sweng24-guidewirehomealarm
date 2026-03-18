@@ -83,8 +83,8 @@ microcontroller-syntax:
     - merge_requests
     - main
 
-# Frontend build and test using Docker container
-frontend-build:
+# Frontend validation using Docker container
+frontend-validate:
   stage: validate
   image: docker:24
   services:
@@ -112,10 +112,22 @@ build-backend:
     - docker buildx create --use
   script:
     - cd backend
-    - docker buildx build --platform linux/amd64,linux/arm64 -t $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA -t $BACKEND_IMAGE:latest --push .
-  only:
-    - main
-  when: manual
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        docker buildx build --platform linux/amd64,linux/arm64 \
+          -t $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA \
+          -t $BACKEND_IMAGE:latest \
+          --push .
+      else
+        docker buildx build --platform linux/amd64,linux/arm64 \
+          -t $BACKEND_IMAGE:pre-main-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA \
+          --push .
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
 
 # Build frontend Docker image
 build-frontend:
@@ -130,10 +142,22 @@ build-frontend:
     - docker buildx create --use
   script:
     - cd frontend
-    - docker buildx build --platform linux/amd64,linux/arm64 -t $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA -t $FRONTEND_IMAGE:latest --push .
-  only:
-    - main
-  when: manual
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        docker buildx build --platform linux/amd64,linux/arm64 \
+          -t $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA \
+          -t $FRONTEND_IMAGE:latest \
+          --push .
+      else
+        docker buildx build --platform linux/amd64,linux/arm64 \
+          -t $FRONTEND_IMAGE:pre-main-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA \
+          --push .
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
 
 # Build microcontroller Docker image
 build-microcontroller:
@@ -148,10 +172,22 @@ build-microcontroller:
     - docker buildx create --use
   script:
     - cd microcontroller
-    - docker buildx build --platform linux/amd64,linux/arm64 -t $MICROCONTROLLER_IMAGE:$CI_COMMIT_SHORT_SHA -t $MICROCONTROLLER_IMAGE:latest --push .
-  only:
-    - main
-  when: manual
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        docker buildx build --platform linux/amd64,linux/arm64 \
+          -t $MICROCONTROLLER_IMAGE:$CI_COMMIT_SHORT_SHA \
+          -t $MICROCONTROLLER_IMAGE:latest \
+          --push .
+      else
+        docker buildx build --platform linux/amd64,linux/arm64 \
+          -t $MICROCONTROLLER_IMAGE:pre-main-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA \
+          --push .
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
 
 # Manual release preview without mutating the repository
 release-dry-run:
