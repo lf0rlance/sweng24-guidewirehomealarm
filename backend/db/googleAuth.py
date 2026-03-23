@@ -1,11 +1,30 @@
 from db import connectToDB
 import psycopg2
 import bcrypt
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple, Any
 
 # In-memory store for dev when PostgreSQL is not running (users lost on restart)
 _dev_users: Dict[str, Dict] = {}
 _dev_next_id = 1
+
+# Query that works when phone/role columns exist (after migration)
+_SELECT_USER_FULL = "SELECT id, email, username, COALESCE(role, 'user'), phone FROM user_table WHERE email = %s"
+# Fallback when phone or role column is missing (old DB before migration)
+_SELECT_USER_LEGACY = "SELECT id, email, username FROM user_table WHERE email = %s"
+
+
+def _select_user_by_email(cursor, email: str) -> Optional[Tuple[Any, ...]]:
+    """Fetch one user row by email. Tries full columns first, then legacy (no phone/role)."""
+    try:
+        cursor.execute(_SELECT_USER_FULL, (email,))
+        return cursor.fetchone()
+    except psycopg2.errors.UndefinedColumn:
+        cursor.connection.rollback()  # allow another query after failed one
+        cursor.execute(_SELECT_USER_LEGACY, (email,))
+        row = cursor.fetchone()
+        if row:
+            return (row[0], row[1], row[2], "user", None)  # id, email, username, role, phone
+        return None
 
 
 def _find_or_create_google_user_dev(google_id: str, email: str, name: str) -> Dict:
@@ -39,17 +58,15 @@ def find_google_user_only(google_id: str, email: str, name: str) -> Optional[Dic
         if conn is None:
             return _find_google_user_dev_only(email)
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, email, username FROM user_table WHERE email = %s",
-            (email,),
-        )
-        user = cursor.fetchone()
+        user = _select_user_by_email(cursor, email)
         if user:
-            user_id, user_email, username = user
+            user_id, user_email, username, role, phone = user
             return {
                 "id": user_id,
                 "email": user_email,
                 "name": username or name,
+                "role": role or "user",
+                "phone": phone,
             }
         return None
     except psycopg2.OperationalError:
@@ -75,6 +92,58 @@ def find_google_user_only(google_id: str, email: str, name: str) -> Optional[Dic
                 pass
 
 
+def get_user_by_email_for_password_login(email: str) -> Optional[tuple]:
+    """
+    For email/password login (admin-created users). Returns (user_dict, password_hash) or None.
+    user_dict has id, email, name, role, phone. Only returns if password_hash is not null.
+    """
+    conn = None
+    try:
+        conn = connectToDB.connectToDB()
+        if conn is None:
+            return None
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """SELECT id, email, username, COALESCE(role, 'user'), COALESCE(phone, ''), password_hash
+                   FROM user_table WHERE email = %s AND password_hash IS NOT NULL""",
+                (email.strip().lower(),),
+            )
+        except psycopg2.errors.UndefinedColumn:
+            conn.rollback()
+            cursor.execute(
+                """SELECT id, email, username, password_hash
+                   FROM user_table WHERE email = %s AND password_hash IS NOT NULL""",
+                (email.strip().lower(),),
+            )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        if len(row) == 6:
+            user_id, user_email, username, role, phone, password_hash = row
+            phone = phone or None
+        else:
+            user_id, user_email, username, password_hash = row
+            role, phone = "user", None
+        user_dict = {
+            "id": user_id,
+            "email": user_email,
+            "name": username or user_email.split("@")[0],
+            "role": role or "user",
+            "phone": phone,
+        }
+        return (user_dict, password_hash)
+    except Exception as e:
+        print(f"get_user_by_email_for_password_login: {e}")
+        return None
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def find_or_create_google_user(google_id: str, email: str, name: str) -> Optional[Dict]:
     """
     Find or create a user from Google OAuth.
@@ -88,19 +157,16 @@ def find_or_create_google_user(google_id: str, email: str, name: str) -> Optiona
             print("Database connection returned None; using dev in-memory store")
             return _find_or_create_google_user_dev(google_id, email, name)
         cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT id, email, username FROM user_table WHERE email = %s",
-            (email,),
-        )
-        user = cursor.fetchone()
+        user = _select_user_by_email(cursor, email)
 
         if user:
-            user_id, user_email, username = user
+            user_id, user_email, username, role, phone = user
             return {
                 "id": user_id,
                 "email": user_email,
                 "name": username or name,
+                "role": role or "user",
+                "phone": phone,
             }
         else:
             import secrets
@@ -111,15 +177,24 @@ def find_or_create_google_user(google_id: str, email: str, name: str) -> Optiona
                 bcrypt.gensalt(),
             ).decode()
             username = email.split("@")[0][:100]
-
-            cursor.execute(
-                """
-                INSERT INTO user_table (username, email, alarm_system_id, password_hash)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id, email, username
-                """,
-                (username, email, None, password_hash),
-            )
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO user_table (username, email, alarm_system_id, password_hash, role)
+                    VALUES (%s, %s, %s, %s, 'user')
+                    RETURNING id, email, username
+                    """,
+                    (username, email, None, password_hash),
+                )
+            except psycopg2.errors.UndefinedColumn:
+                cursor.execute(
+                    """
+                    INSERT INTO user_table (username, email, alarm_system_id, password_hash)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id, email, username
+                    """,
+                    (username, email, None, password_hash),
+                )
             new_user = cursor.fetchone()
             conn.commit()
             if new_user:
@@ -128,6 +203,8 @@ def find_or_create_google_user(google_id: str, email: str, name: str) -> Optiona
                     "id": user_id,
                     "email": user_email,
                     "name": username or name,
+                    "role": "user",
+                    "phone": None,
                 }
 
     except psycopg2.OperationalError:
@@ -151,17 +228,15 @@ def find_or_create_google_user(google_id: str, email: str, name: str) -> Optiona
             except Exception:
                 pass
         try:
-            cursor.execute(
-                "SELECT id, email, username FROM user_table WHERE email = %s",
-                (email,),
-            )
-            user = cursor.fetchone()
+            user = _select_user_by_email(cursor, email)
             if user:
-                user_id, user_email, username = user
+                user_id, user_email, username, role, phone = user
                 return {
                     "id": user_id,
                     "email": user_email,
                     "name": username or name,
+                    "role": role or "user",
+                    "phone": phone,
                 }
         except Exception:
             pass

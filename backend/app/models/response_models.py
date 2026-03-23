@@ -11,6 +11,8 @@ class UserResponse(BaseModel):
     id: int
     email: str
     name: str
+    role: Optional[str] = "user"
+    phone: Optional[str] = None
 
 
 class AuthResponse(BaseModel):

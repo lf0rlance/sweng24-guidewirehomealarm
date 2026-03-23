@@ -125,3 +125,31 @@ def send_push_for_event(event_dict: Dict[str, Any], alarm_system_id: Optional[in
                     print(f"  FCM failure[{i}]: {err.exception}")
     except Exception as e:
         print(f"FCM send failed: {e}")
+
+
+def send_notification_to_system(alarm_system_id: int, title: str, body: str) -> int:
+    """
+    Send a one-off notification to all devices registered for this home (e.g. admin notifying homeowner).
+    Returns number of devices successfully sent to.
+    """
+    tokens = _get_tokens_for_system(alarm_system_id)
+    if not tokens:
+        return 0
+    if not init_firebase_if_needed():
+        return 0
+    try:
+        from firebase_admin import messaging
+        android_config = messaging.AndroidConfig(
+            notification=messaging.AndroidNotification(channel_id="sensor_events"),
+            priority="high",
+        )
+        message = messaging.MulticastMessage(
+            notification=messaging.Notification(title=title, body=body),
+            tokens=tokens,
+            android=android_config,
+        )
+        batch = messaging.send_each_for_multicast(message)
+        return batch.success_count
+    except Exception as e:
+        print(f"send_notification_to_system failed: {e}")
+        return 0

@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.guidewirehomesecurityapp.api.AlarmService
+import com.example.guidewirehomesecurityapp.ui.components.ScreenTitleWithLogo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,12 +60,10 @@ fun ControlSecurityScreen(modifier: Modifier = Modifier) {
             .padding(20.dp)
             .verticalScroll(scrollState)
     ) {
-        Text(
-            text = "System control",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 8.dp)
+        ScreenTitleWithLogo(
+            title = "System control",
+            modifier = Modifier.padding(bottom = 8.dp),
+            style = MaterialTheme.typography.headlineMedium
         )
         Text(
             text = "Arm or disarm the alarm and check sensor status.",
