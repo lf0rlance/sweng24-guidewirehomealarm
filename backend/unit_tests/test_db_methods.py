@@ -49,7 +49,13 @@ class TestConnectMicroController(unittest.TestCase):
 
         self.assertTrue(result)
         cursor.execute.assert_called_once_with(
-            "INSERT into microcontroller(microcontroller_id,alarm_system_id, current_state) VALUES(%s, %s, %s)",
+            """
+            INSERT INTO microcontroller (microcontroller_id, alarm_system_id, current_state)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (microcontroller_id) DO UPDATE SET
+                alarm_system_id = EXCLUDED.alarm_system_id,
+                current_state = EXCLUDED.current_state
+            """,
             (1001, 7, "idle"),
         )
         conn.commit.assert_called_once()
@@ -179,7 +185,10 @@ class TestInsertUserInDB(unittest.TestCase):
 
         self.assertTrue(result)
         cursor.execute.assert_called_once_with(
-            "INSERT into user_table(username, email, alarm_system_id, password_hash) VALUES(%s, %s, %s, %s)",
+            """
+            INSERT INTO user_table(username, email, alarm_system_id, password_hash)
+            VALUES(%s, %s, %s, %s)
+            """,
             ("alice", "alice@example.com", 5, "hashed"),
         )
         conn.commit.assert_called_once()

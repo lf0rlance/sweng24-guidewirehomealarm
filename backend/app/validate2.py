@@ -30,7 +30,7 @@ class ValidateData(BaseModel):
     #where x are digits
     device_id: Annotated[str, Field(pattern=r"^esp32_\d+$")]
     #event type field can only be one of those in the array, if not -> validation fails
-    event_type: Literal["door_open", "door_closed", "alarm_enabled", "alarm_disabled"]
+    event_type: Literal["door_open", "door_closed", "alarm_enabled", "alarm_disabled", "led_toggle"]
     #count should be of type int and gretater than zero
     count: Annotated[int, Field(gt=0)]
     #time stamp is in unix format, float number
@@ -43,9 +43,9 @@ class ValidateData(BaseModel):
         now = int(time.time())
         #account for delay +- 3 min
         max_delay = 180 #seconds
-        if(abs(now-value) > max_delay):
+        if abs(now-value) > max_delay:
             raise ValueError(
-                f"timestamp {value} is {abs(now-value)}seconds away from current time stamp.\n Maximum delay allowed is{max_delay}"
+                f"timestamp {value} is {abs(now-value)} seconds away from current time stamp. Maximum delay allowed is {max_delay}"
             )
         return value
 
