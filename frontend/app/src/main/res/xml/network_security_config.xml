@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Allow HTTP to local/dev backend. For production, use HTTPS and remove or tighten this. -->
+<!--
+  HTTP to LAN backends (e.g. Raspberry Pi). Android 9+ blocks cleartext by default.
+  Whitelisting single IPs breaks when the subnet changes (e.g. 10.40.x vs 192.168.x).
+  For production on the public internet, serve HTTPS and tighten this config.
+-->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">10.0.2.2</domain>
-        <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">127.0.0.1</domain>
-        <!-- LAN IPs for physical device dev (e.g. 192.168.0.242). Add your PC IP if needed. -->
-        <domain includeSubdomains="true">192.168.0.242</domain>
-        <domain includeSubdomains="true">192.168.1.1</domain>
-    </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
 </network-security-config>
