@@ -12,6 +12,8 @@ class MainActivity : ComponentActivity() {
 
     sealed class AppScreen {
         object Splash : AppScreen()
+        object Otp : AppScreen()
+
         object Login : AppScreen()
         object Home : AppScreen()
     }
@@ -23,13 +25,26 @@ class MainActivity : ComponentActivity() {
         setContent {
             LogInTheme {
                 var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Splash) }
+                var otpEmail by remember { mutableStateOf("") }
 
                 when (currentScreen) {
                     AppScreen.Splash -> {
                         SplashScreen { currentScreen = AppScreen.Login }
                     }
                     AppScreen.Login -> {
-                        LoginScreen(onLoginSuccess = { currentScreen = AppScreen.Home })
+                        LoginScreen(
+                            onLoginSuccess = { currentScreen = AppScreen.Home },
+                            onMfaRequired = { email ->
+                                otpEmail = email
+                                currentScreen = AppScreen.Otp
+                            }
+                        )
+                    }
+                    AppScreen.Otp -> {
+                        OtpScreen(
+                            email = otpEmail,
+                            onVerified = { currentScreen = AppScreen.Home }
+                        )
                     }
                     AppScreen.Home -> {
                         HomeScreen(onSignOut = { currentScreen = AppScreen.Login })

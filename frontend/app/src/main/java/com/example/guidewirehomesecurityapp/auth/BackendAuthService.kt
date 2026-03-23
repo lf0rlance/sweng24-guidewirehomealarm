@@ -107,9 +107,91 @@ object BackendAuthService {
     fun signIn(
         context: Context,
         idToken: String,
+        onMfaRequired: (String) -> Unit,   // passes email to show OTP screen
+        onError: (String) -> Unit
+    ) {
+        thread {
+            try {
+                val json = JSONObject().apply { put("idToken", idToken) }
+                val body = json.toString().toRequestBody("application/json".toMediaType())
+                val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+                val url = "$base/api/auth/signin"
+                val request = Request.Builder()
+                    .url(url)
+                    .post(body)
+                    .addHeader("Content-Type", "application/json")
+                    .build()
+                val client = OkHttpClient.Builder()
+                    .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string()
+                if (response.isSuccessful) {
+                    val obj = JSONObject(responseBody ?: "{}")
+                    val email = obj.optString("email", "")
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        onMfaRequired(email)
+                    }
+                } else {
+                    val errorMsg = try {
+                        JSONObject(responseBody ?: "{}").optString("detail", "Unknown error")
+                    } catch (e: Exception) { "HTTP ${response.code}" }
+                    android.os.Handler(android.os.Looper.getMainLooper()).post { onError(errorMsg) }
+                }
+            } catch (e: Exception) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    onError("Network error: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun verifyOtp(
+        context: Context,
+        email: String,
+        code: String,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        request(context, "/auth/signin", idToken, onSuccess, onError)
+        thread {
+            try {
+                val json = JSONObject().apply {
+                    put("email", email)
+                    put("code", code)
+                }
+                val body = json.toString().toRequestBody("application/json".toMediaType())
+                val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+                val url = "$base/api/auth/verify-otp"
+                val request = Request.Builder()
+                    .url(url)
+                    .post(body)
+                    .addHeader("Content-Type", "application/json")
+                    .build()
+                val client = OkHttpClient.Builder()
+                    .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string()
+                if (response.isSuccessful) {
+                    responseBody?.let {
+                        val obj = JSONObject(it)
+                        val jwt = obj.optString("token", "").takeIf { t -> t.isNotBlank() }
+                        if (jwt != null) saveToken(context, jwt)
+                    }
+                    android.os.Handler(android.os.Looper.getMainLooper()).post { onSuccess() }
+                } else {
+                    val errorMsg = try {
+                        JSONObject(responseBody ?: "{}").optString("detail", "Invalid code")
+                    } catch (e: Exception) { "HTTP ${response.code}" }
+                    android.os.Handler(android.os.Looper.getMainLooper()).post { onError(errorMsg) }
+                }
+            } catch (e: Exception) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    onError("Network error: ${e.message}")
+                }
+            }
+        }
     }
 }

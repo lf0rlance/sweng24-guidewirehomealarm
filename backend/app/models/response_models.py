@@ -27,3 +27,7 @@ class HealthResponse(BaseModel):
     status: str
     service: str
     backend_url: Optional[str]
+
+class MfaRequiredResponse(BaseModel):
+    mfa_required: bool
+    email: str
