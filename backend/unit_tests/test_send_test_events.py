@@ -84,7 +84,7 @@ class TestMain(unittest.TestCase):
         mock_parse_args.return_value = type(
             "Args",
             (),
-            {"base": "http://localhost:5000/", "device": "esp32_123", "once": True},
+            {"base": "http://localhost:5000/", "device": "esp32_123", "once": True, "both": False},
         )()
 
         send_test_events.main()
@@ -103,7 +103,7 @@ class TestMain(unittest.TestCase):
         mock_parse_args.return_value = type(
             "Args",
             (),
-            {"base": "http://localhost:5000/", "device": "esp32_456", "once": False},
+            {"base": "http://localhost:5000/", "device": "esp32_456", "once": False, "both": False},
         )()
 
         send_test_events.main()

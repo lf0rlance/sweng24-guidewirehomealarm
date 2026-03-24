@@ -1,5 +1,5 @@
 /build
-/google-services.json
+/src/google-services.json
 # macOS
 .DS_Store
 

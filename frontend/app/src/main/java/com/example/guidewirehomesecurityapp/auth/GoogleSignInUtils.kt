@@ -1,9 +1,9 @@
 package com.example.guidewirehomesecurityapp.auth
 
-import com.example.guidewirehomesecurityapp.BuildConfig
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import com.example.guidewirehomesecurityapp.BuildConfig
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.result.ActivityResult
 import androidx.credentials.CredentialManager

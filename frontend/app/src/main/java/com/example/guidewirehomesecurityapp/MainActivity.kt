@@ -4,51 +4,55 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import com.example.guidewirehomesecurityapp.ui.screens.HomeScreen
-import com.example.guidewirehomesecurityapp.ui.screens.LoginScreen
 import androidx.compose.runtime.*
-import com.example.guidewirehomesecurityapp.ui.screens.EnergyScreen
-
+import com.example.guidewirehomesecurityapp.auth.BackendAuthService
+import com.example.guidewirehomesecurityapp.ui.screens.*
+import com.example.guidewirehomesecurityapp.ui.theme.AdminTheme
+import com.example.guidewirehomesecurityapp.ui.theme.LogInTheme
 
 class MainActivity : ComponentActivity() {
+
+    sealed class AppScreen {
+        object Splash : AppScreen()
+        object Login : AppScreen()
+        object Home : AppScreen()
+        object AdminDashboard : AppScreen()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         setContent {
-
-            var currentScreen by remember { mutableStateOf("login") }
-
-            Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+            LogInTheme {
+                var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Splash) }
 
                 when (currentScreen) {
-
-                    "login" -> {
-                        LoginScreen(
-                            modifier = Modifier.padding(innerPadding),
-                            onLoginSuccess = { currentScreen = "home" }
-                        )
+                    AppScreen.Splash -> {
+                        SplashScreen { currentScreen = AppScreen.Login }
                     }
-
-                    "home" -> {
-                        HomeScreen(
-                            modifier = Modifier.padding(innerPadding),
-                            onNavigateToEnergy = { currentScreen = "energy" }
-                        )
+                    AppScreen.Login -> {
+                        LoginScreen(onLoginSuccess = {
+                            currentScreen = if (BackendAuthService.getRole(this) == "admin") {
+                                AppScreen.AdminDashboard
+                            } else {
+                                AppScreen.Home
+                            }
+                        })
                     }
-
-                    "energy" -> {
-                        EnergyScreen(
-                            modifier = Modifier.padding(innerPadding),
-                            onBack = { currentScreen = "home" }
-                        )
+                    AppScreen.Home -> {
+                        HomeScreen(onSignOut = {
+                            BackendAuthService.clearToken(this)
+                            currentScreen = AppScreen.Login
+                        })
+                    }
+                    AppScreen.AdminDashboard -> {
+                        AdminTheme {
+                            AdminDashboardScreen(onSignOut = {
+                                BackendAuthService.clearToken(this)
+                                currentScreen = AppScreen.Login
+                            })
+                        }
                     }
                 }
             }

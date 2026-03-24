@@ -1,7 +1,7 @@
 from db import connectToDB
 import psycopg2
 #import method for finding system id by username
-import connectToAlarmSystem
+from db import connectToAlarmSystem
 
 #function to get mode
 def getModeBySysId(alarm_system_id: int) -> bool | None:
@@ -14,13 +14,16 @@ def getModeBySysId(alarm_system_id: int) -> bool | None:
     else:
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT armed FROM alarm_system_table WHERE alarm_system_id = %s;", (alarm_system_id,))
-            mode = cursor.fetchone()[0]
-            
-        except:
-            raise("Failed to connect")
-
+            cursor.execute("SELECT armed FROM alarm_system_table WHERE alarm_system_id = %s", (alarm_system_id,))
+            row = cursor.fetchone()
+            mode = row[0] if row is not None else None
+        except Exception:
+            mode = None
         finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
             return mode
 
 #function to get mode by username

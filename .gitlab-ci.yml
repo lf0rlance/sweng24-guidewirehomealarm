@@ -1,3 +1,310 @@
-noop:
+stages:
+  - validate
+  - build
+  - release
+
+default:
+  tags:
+    - sweng24-docker
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_BUILDKIT: "1"
+  BACKEND_IMAGE: $CI_REGISTRY_IMAGE/backend
+  FRONTEND_IMAGE: $CI_REGISTRY_IMAGE/frontend
+  MICROCONTROLLER_IMAGE: $CI_REGISTRY_IMAGE/microcontroller
+
+# Backend validation using Docker container
+backend-syntax:
+  stage: validate
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
   script:
-    - echo "ok"
+    - cd backend
+    - docker build -t backend-test -f Dockerfile --target builder .
+    - docker run --rm backend-test python -m compileall -q app run.py
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Lint for code quality using Docker
+backend-lint:
+  stage: validate
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
+  script:
+    - cd backend
+    - docker build -t backend-test -f Dockerfile --target builder .
+    - docker run --rm backend-test sh -c "pip install flake8 && flake8 app/ --max-line-length=120 --exclude=__pycache__,*.pyc --exit-zero"
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Backend tests using Docker container
+backend-test:
+  stage: validate
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
+  script:
+    - cd backend
+    - docker build -t backend-test -f Dockerfile --target builder .
+    - docker run --rm backend-test sh -c "pip install pytest pytest-cov httpx && pytest unit_tests/ -v"
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Microcontroller validation using Docker container
+microcontroller-syntax:
+  stage: validate
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
+  script:
+    - cd microcontroller
+    - docker build -t microcontroller-test .
+    - docker run --rm microcontroller-test
+  only:
+    - merge_requests
+    - main
+
+# Frontend validation using Docker container
+frontend-validate:
+  stage: validate
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
+  script:
+    - cd frontend
+    - docker build -t frontend-test .
+    - docker run --rm frontend-test
+  only:
+    - merge_requests
+    - main
+
+# Build Docker image
+build-backend:
+  stage: build
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker buildx create --use
+  script:
+    - cd backend
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        docker buildx build --platform linux/amd64\
+          -t $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA \
+          -t $BACKEND_IMAGE:latest \
+          --push .
+      else
+        docker buildx build --platform linux/amd64 \
+          -t $BACKEND_IMAGE:pre-main-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA \
+          --push .
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
+
+# Build frontend Docker image
+build-frontend:
+  stage: build
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker buildx create --use
+  script:
+    - cd frontend
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        docker buildx build --platform linux/amd64 \
+          -t $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA \
+          -t $FRONTEND_IMAGE:latest \
+          --push .
+      else
+        docker buildx build --platform linux/amd64 \
+          -t $FRONTEND_IMAGE:pre-main-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA \
+          --push .
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
+
+# Build microcontroller Docker image
+build-microcontroller:
+  stage: build
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker buildx create --use
+  script:
+    - cd microcontroller
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        docker buildx build --platform linux/amd64 \
+          -t $MICROCONTROLLER_IMAGE:$CI_COMMIT_SHORT_SHA \
+          -t $MICROCONTROLLER_IMAGE:latest \
+          --push .
+      else
+        docker buildx build --platform linux/amd64 \
+          -t $MICROCONTROLLER_IMAGE:pre-main-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA \
+          --push .
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
+
+# Manual release preview without mutating the repository
+release-dry-run:
+  stage: release
+  image: alpine:3.20
+  rules:
+    - if: $CI_COMMIT_BRANCH
+      when: manual
+  script: |
+    set -e
+    apk add --no-cache git
+    git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    git fetch --tags origin
+
+    LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+    if [ -n "$LATEST_TAG" ]; then
+      VERSION="${LATEST_TAG#v}"
+      VERSION_SOURCE="tag:${LATEST_TAG}"
+    else
+      VERSION="1.0.0"
+      VERSION_SOURCE="default:0.0.0"
+    fi
+
+    if [ -n "${RELEASE_DRY_RUN_CURRENT_VERSION:-}" ]; then
+      VERSION="${RELEASE_DRY_RUN_CURRENT_VERSION}"
+      VERSION_SOURCE="override:RELEASE_DRY_RUN_CURRENT_VERSION"
+    fi
+
+    echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+      echo "Invalid version format from $VERSION_SOURCE: $VERSION"
+      exit 1
+    }
+    MAJOR=$(echo "$VERSION" | cut -d. -f1)
+    MINOR=$(echo "$VERSION" | cut -d. -f2)
+    PATCH=$(echo "$VERSION" | cut -d. -f3)
+
+    COMMIT_REF="${CI_COMMIT_SHA:-HEAD}"
+    COMMIT_MSG=$(git log -1 --pretty=%B "$COMMIT_REF")
+    if echo "$COMMIT_MSG" | grep -q "BREAKING CHANGE"; then
+      MAJOR=$((MAJOR + 1))
+      MINOR=0
+      PATCH=0
+    elif echo "$COMMIT_MSG" | grep -q "!:"; then
+      MAJOR=$((MAJOR + 1))
+      MINOR=0
+      PATCH=0
+    elif echo "$COMMIT_MSG" | grep -q "^feat"; then
+      MINOR=$((MINOR + 1))
+      PATCH=0
+    else
+      PATCH=$((PATCH + 1))
+    fi
+
+    NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+    TAG="v${NEW_VERSION}"
+
+    echo "Dry run only: no commit, push, or tag will be created."
+    echo "Branch: ${CI_COMMIT_BRANCH:-unknown}"
+    echo "Version source: $VERSION_SOURCE"
+    echo "Current version: $VERSION"
+    echo "Calculated next version: $NEW_VERSION"
+    echo "Would create tag: $TAG"
+    printf "version_source=%s\ncurrent_version=%s\nnext_version=%s\ntag=%s\n" \
+      "$VERSION_SOURCE" "$VERSION" "$NEW_VERSION" "$TAG" > release-preview.txt
+  artifacts:
+    paths:
+      - release-preview.txt
+    expire_in: 1 week
+
+# Automated version bump + tag
+release-auto:
+  stage: release
+  image: alpine:3.20
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_COMMIT_BRANCH
+      when: manual
+  script: |
+    set -e
+    apk add --no-cache git
+    git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    git fetch --tags origin
+
+    LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+    if [ -n "$LATEST_TAG" ]; then
+      VERSION="${LATEST_TAG#v}"
+    else
+      VERSION="1.0.0"
+    fi
+
+    echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+      echo "Invalid version format from latest tag: ${VERSION}"
+      exit 1
+    }
+
+    MAJOR=$(echo "$VERSION" | cut -d. -f1)
+    MINOR=$(echo "$VERSION" | cut -d. -f2)
+    PATCH=$(echo "$VERSION" | cut -d. -f3)
+
+    COMMIT_MSG=$(git log -1 --pretty=%B "$CI_COMMIT_SHA")
+    if echo "$COMMIT_MSG" | grep -q "BREAKING CHANGE"; then
+      MAJOR=$((MAJOR + 1))
+      MINOR=0
+      PATCH=0
+    elif echo "$COMMIT_MSG" | grep -q "!:"; then
+      MAJOR=$((MAJOR + 1))
+      MINOR=0
+      PATCH=0
+    elif echo "$COMMIT_MSG" | grep -q "^feat"; then
+      MINOR=$((MINOR + 1))
+      PATCH=0
+    else
+      PATCH=$((PATCH + 1))
+    fi
+
+    NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+    TAG="v${NEW_VERSION}"
+    echo "Current version: $VERSION -> New version: $NEW_VERSION (tag: $TAG)"
+    git tag "$TAG" "$CI_COMMIT_SHA"
+    git push "https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" "$TAG"

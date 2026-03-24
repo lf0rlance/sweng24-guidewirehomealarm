@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import socket
 
 from app.config import settings
-from app.routers import auth, events, users, pairing
+from app.routers import auth, events, users, pairing, notifications, alarm, admin
 from app.models.response_models import HealthResponse
 from app.rate_limit import SlidingWindow, RateLimitMiddleware
 
@@ -22,6 +22,13 @@ def get_local_ip():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Ensure DB has phone/role columns and admin tables (same DB the app uses)
+    try:
+        from db.ensure_schema import run_startup_migration
+        run_startup_migration()
+    except Exception as e:
+        print(f"Startup migration (optional): {e}")
+
     local_ip = get_local_ip()
     port = settings.port
     effective_url = settings.backend_url or f"http://{local_ip}:{port}"
@@ -57,6 +64,9 @@ app.include_router(auth.router)
 app.include_router(events.router)
 app.include_router(users.router)
 app.include_router(pairing.router)
+app.include_router(notifications.router)
+app.include_router(alarm.router)
+app.include_router(admin.router)
 
 
 @app.get("/health", response_model=HealthResponse)

@@ -1,16 +1,14 @@
 # WiFi Mode: "AP" for Access Point (ESP32 creates hotspot) or "STA" for Station (ESP32 connects to existing WiFi)
-WIFI_MODE = "AP"
+WIFI_MODE = "STA"
 
-# Access Point settings (when ESP32 creates its own WiFi)
+# Access Point settings 
 AP_SSID = "ESP32_HomeAlarm"
 AP_PASSWORD = "Group24"  # Must be at least 8 characters
 
-# Station mode settings (when ESP32 connects to existing WiFi)
-WIFI_SSID = "wifi_name"
-WIFI_PASSWORD = "wifi_pass"
+# Station mode settings 
+WIFI_SSID = "INSERT WIFI SSID"
+WIFI_PASSWORD = "WORDPASS321"
 
 # Backend configuration
-# For AP mode: laptop connects to ESP32 WiFi and gets IP 192.168.4.2
-# ESP32 sends events to the laptop
-# should add security here, maybe use esp32 auth token that backend can validate 
-BACKEND_URL = "http://192.168.4.2:5000/api/events"
+#Set URL to http:// (INSERT IP here):(INSERT PORT HERE)/api/events
+BACKEND_URL = "http://172.20.10.5:5000/api/events"
