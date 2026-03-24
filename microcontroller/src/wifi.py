@@ -7,9 +7,9 @@ def connect(ssid, password):
     
     if not wlan.isconnected():
         print('Connecting to WiFi...')
-        wlan.connect(ssid, password)
-        
-        timeout = 10
+        wlan.disconnect() # Clear any stuck connection attempts 
+        networks = wlan.scan() 
+        timeout = 30
         while not wlan.isconnected() and timeout > 0:
             time.sleep(1)
             timeout -= 1
