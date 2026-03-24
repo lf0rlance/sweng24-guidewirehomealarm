@@ -45,19 +45,3 @@ def connect_microcontroller_by_user_id(user_id: int, micro_controller_id: int) -
     if connectToAlarmSystem.get_alarm_system_id_by_user_id(user_id) is None:
         connectToAlarmSystem.connectUserToSystem(username)
     return connectMicroController(micro_controller_id, username)
-
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT into microcontroller(microcontroller_id,alarm_system_id, current_state) VALUES(%s, %s, %s)",
-            (microControllerId, system_id, "idle"),
-        )
-        conn.commit()
-        return True
-    except psycopg2.IntegrityError:
-        conn.rollback()
-        return False
-    except Exception:
-        conn.rollback()
-        return False
-    finally:
-        conn.close()

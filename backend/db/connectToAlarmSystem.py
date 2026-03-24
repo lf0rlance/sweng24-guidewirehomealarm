@@ -102,54 +102,54 @@ def connectUserToSystem(username: str) -> None:
 
     if(systemId == None):
         print("You have to pair your account with alarm system")
-        
-        conn = connectToDB.connectToDB()
 
-        cursor = conn.cursor()
+        try:
+            conn = connectToDB.connectToDB()
+            cursor = conn.cursor()
 
-        cursor.execute("SELECT alarm_system_id FROM user_table WHERE id = %s", (user_id,))
-        user_row = cursor.fetchone()
-        if not user_row:
+            cursor.execute("SELECT alarm_system_id FROM user_table WHERE id = %s", (user_id,))
+            user_row = cursor.fetchone()
+            if not user_row:
+                return False
+
+            current_system_id = user_row[0]
+            if current_system_id is not None:
+                return False
+
+            cursor.execute(
+                """
+                SELECT alarm_system_id, system_password_hash
+                FROM alarm_system_table
+                WHERE paired = FALSE
+                """
+            )
+            candidates = cursor.fetchall()
+
+            matched_system_id = None
+            for alarm_system_id, password_hash in candidates:
+                if bcrypt.checkpw(system_password.encode(), password_hash.encode()):
+                    matched_system_id = alarm_system_id
+                    break
+
+            if matched_system_id is None:
+                return False
+
+            cursor.execute(
+                """
+                UPDATE user_table
+                SET alarm_system_id = %s
+                WHERE id = %s
+                """,
+                (matched_system_id, user_id),
+            )
+            cursor.execute(
+                "UPDATE alarm_system_table SET paired = TRUE WHERE alarm_system_id = %s",
+                (matched_system_id,),
+            )
+            conn.commit()
+            return True
+        except Exception:
+            conn.rollback()
             return False
-
-        current_system_id = user_row[0]
-        if current_system_id is not None:
-            return False
-
-        cursor.execute(
-            """
-            SELECT alarm_system_id, system_password_hash
-            FROM alarm_system_table
-            WHERE paired = FALSE
-            """
-        )
-        candidates = cursor.fetchall()
-
-        matched_system_id = None
-        for alarm_system_id, password_hash in candidates:
-            if bcrypt.checkpw(system_password.encode(), password_hash.encode()):
-                matched_system_id = alarm_system_id
-                break
-
-        if matched_system_id is None:
-            return False
-
-        cursor.execute(
-            """
-            UPDATE user_table
-            SET alarm_system_id = %s
-            WHERE id = %s
-            """,
-            (matched_system_id, user_id),
-        )
-        cursor.execute(
-            "UPDATE alarm_system_table SET paired = TRUE WHERE alarm_system_id = %s",
-            (matched_system_id,),
-        )
-        conn.commit()
-        return True
-    except Exception:
-        conn.rollback()
-        return False
-    finally:
-        conn.close()
+        finally:
+            conn.close()
