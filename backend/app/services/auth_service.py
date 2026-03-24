@@ -2,8 +2,9 @@ import jwt
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
+import bcrypt
 from app.config import settings
-from db.googleAuth import find_or_create_google_user, find_google_user_only
+from db.googleAuth import find_or_create_google_user, find_google_user_only, get_user_by_email_for_password_login
 from app.services.otp_service import generate_otp, send_otp_email, verify_otp
 
 
@@ -19,8 +20,9 @@ def verify_google_token(id_token_str: str):
 
 
 def build_user_response(user: dict):
+    role = user.get("role") or "user"
     token = jwt.encode(
-        {"userId": user["id"], "email": user["email"]},
+        {"userId": user["id"], "email": user["email"], "role": role},
         settings.jwt_secret,
         algorithm="HS256"
     )
@@ -29,7 +31,9 @@ def build_user_response(user: dict):
         "user": {
             "id": user["id"],
             "email": user["email"],
-            "name": user["name"]
+            "name": user["name"],
+            "role": role,
+            "phone": user.get("phone"),
         }
     }
 
@@ -76,3 +80,14 @@ def verify_otp_and_signin(email: str, code: str):
     if not user:
         raise Exception("User not found")
     return build_user_response(user)
+
+
+def login_with_password(email: str, password: str):
+    """Login for admin-created users (email + password). Returns same shape as Google auth."""
+    row = get_user_by_email_for_password_login(email)
+    if not row:
+        raise Exception("Account does not exist or sign-in method not available")
+    user_dict, password_hash = row
+    if not bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8")):
+        raise Exception("Invalid password")
+    return build_user_response(user_dict)

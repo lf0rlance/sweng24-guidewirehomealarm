@@ -5,6 +5,11 @@ class GoogleAuthRequest(BaseModel):
     idToken: str
 
 
+class EmailPasswordLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
 class RegisterTokenRequest(BaseModel):
     token: str
 
@@ -41,3 +46,30 @@ class OtpVerifyRequest(BaseModel):
 class MfaRequiredResponse(BaseModel):
     mfa_required: bool
     email: str
+
+# Admin-only request bodies
+class SetSensorLabelsRequest(BaseModel):
+    labels: list[str]  # e.g. ["Front door", "Back door", "Living room window"]
+
+
+class AddUserToHomeRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+    phone: str | None = None
+
+
+class NotifyHomeownerRequest(BaseModel):
+    title: str
+    body: str
+
+
+class UpdateAlarmSystemRequest(BaseModel):
+    name: str
+
+
+class UpdateUserRequest(BaseModel):
+    username: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    password: str | None = None

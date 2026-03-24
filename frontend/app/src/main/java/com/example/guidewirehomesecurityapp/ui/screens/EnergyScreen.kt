@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import com.example.guidewirehomesecurityapp.ui.components.ScreenTitleWithLogo
 
 @Composable
 fun EnergyScreen(
@@ -89,9 +90,10 @@ fun EnergyScreen(
         }
 
         item {
-            Text(
-                text = "Energy Usage Overview",
-                style = MaterialTheme.typography.titleLarge
+            ScreenTitleWithLogo(
+                title = "Energy Usage Overview",
+                style = MaterialTheme.typography.titleLarge,
+                logoSizeDp = 64
             )
         }
 

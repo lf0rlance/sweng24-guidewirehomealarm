@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
+import com.example.guidewirehomesecurityapp.ui.components.ScreenTitleWithLogo
 
 @Composable
 fun SettingsScreen(
@@ -42,12 +43,10 @@ fun SettingsScreen(
             .padding(20.dp)
             .verticalScroll(scrollState)
     ) {
-        Text(
-            text = "Settings",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 8.dp)
+        ScreenTitleWithLogo(
+            title = "Settings",
+            modifier = Modifier.padding(bottom = 8.dp),
+            style = MaterialTheme.typography.headlineMedium
         )
         Text(
             text = "Account and app preferences",

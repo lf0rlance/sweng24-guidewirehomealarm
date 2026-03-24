@@ -18,9 +18,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,9 +35,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.guidewirehomesecurityapp.auth.BackendAuthService
 import com.example.guidewirehomesecurityapp.auth.GoogleSignInUtils
 import com.example.guidewirehomesecurityapp.notifications.AlarmFirebaseMessagingService
-import com.example.guidewirehomesecurityapp.auth.BackendAuthService
+import com.example.guidewirehomesecurityapp.ui.components.TopCenterLogo
+
 @Composable
 fun LoginScreen(
     modifier: Modifier = Modifier,
@@ -83,6 +90,8 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            TopCenterLogo(sizeDp = 200)
+            Spacer(Modifier.height(24.dp))
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -92,7 +101,7 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Welcome to Guidewire's Home Security App",
+                    text = "Welcome to Guidewire SafeHome",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = colorScheme.primary,
@@ -174,10 +183,59 @@ fun LoginScreen(
                     )
                 ) {
                     Text(
-                        text = "Log in",
+                        text = "Log in with Google",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
+                }
+                Spacer(Modifier.height(20.dp))
+                Text(
+                    text = "Or sign in with email (account created by admin)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colorScheme.onSurface.copy(alpha = 0.8f)
+                )
+                Spacer(Modifier.height(8.dp))
+                var email by remember { mutableStateOf("") }
+                var password by remember { mutableStateOf("") }
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Email") }
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Password") }
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        if (email.isBlank() || password.isBlank()) {
+                            Toast.makeText(context, "Enter email and password", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        BackendAuthService.signInWithEmail(
+                            context = context,
+                            email = email,
+                            password = password,
+                            onSuccess = {
+                                AlarmFirebaseMessagingService.registerTokenAfterLogin(context)
+                                Toast.makeText(context, "Login successful", Toast.LENGTH_SHORT).show()
+                                onLoginSuccess()
+                            },
+                            onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.tertiary, contentColor = colorScheme.onTertiary)
+                ) {
+                    Text("Log in with email")
                 }
             }
         }

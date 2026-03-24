@@ -61,13 +61,13 @@ fun SplashScreen(
             modifier = Modifier.alpha(alpha)
         ) {
             Image(
-                painter = painterResource(R.drawable.splash_logo),
-                contentDescription = "Guidewire Home Security logo",
+                painter = painterResource(R.drawable.guidewire_logo),
+                contentDescription = "Guidewire SafeHome logo",
                 modifier = Modifier.size(160.dp)
             )
             Spacer(Modifier.height(24.dp))
             Text(
-                text = "Guidewire Home Security",
+                text = "Guidewire SafeHome",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary

@@ -14,6 +14,8 @@ from app.services.event_service import (
     get_alarm_system_id_for_user,
     get_alarm_system_id_for_device,
 )
+from db.events import save_event, get_events_for_system
+from db.device_last_seen import update_last_seen
 from app.services.notification_service import send_push_for_event
 
 router = APIRouter()
@@ -61,6 +63,19 @@ def receive_event(event: ValidateData):
     was_armed = _is_system_armed(alarm_system_id)
     EVENTS.append((event_dict, alarm_system_id, was_armed))
 
+    # Persist to DB so history survives backend restarts
+    try:
+        save_event(event_dict, alarm_system_id, was_armed)
+    except Exception as e:
+        print(f"Event persist error: {e}")
+
+    # Record last-seen for offline detection (admin); only for linked devices
+    if alarm_system_id is not None:
+        try:
+            update_last_seen(event.device_id, event_dict["timestamp"])
+        except Exception:
+            pass
+
     # Push only to matching system streams (app can show history either way)
     for queue, client_system_id in connected_clients:
         if client_system_id == alarm_system_id:
@@ -80,12 +95,10 @@ def get_events(user_id: int = Depends(get_current_user_id)):
     if alarm_system_id is None:
         return []
 
-    # Only return events that occurred while the system was armed
-    return [
-        event_dict
-        for event_dict, sid, was_armed in EVENTS
-        if sid == alarm_system_id and was_armed
-    ]
+    # Load from DB so history includes past events, not just this-process memory.
+    events = get_events_for_system(alarm_system_id, armed_only=True)
+    # Keep newest-first ordering for the client; it may reverse again in UI if desired.
+    return events
 
 
 @router.get("/events/stream")

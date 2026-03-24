@@ -12,24 +12,38 @@ import org.json.JSONObject
 
 private const val PREFS_NAME = "auth_prefs"
 private const val KEY_JWT = "jwt"
+private const val KEY_ROLE = "role"
+private const val KEY_USERNAME = "username"
 
 object BackendAuthService {
 
     private fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /** Persist JWT after successful sign-in/sign-up. */
-    fun saveToken(context: Context, token: String) {
-        prefs(context).edit().putString(KEY_JWT, token).apply()
+    /** Persist JWT, role, and optional username after successful sign-in/sign-up. */
+    fun saveToken(context: Context, token: String, role: String? = null, username: String? = null) {
+        prefs(context).edit()
+            .putString(KEY_JWT, token)
+            .putString(KEY_ROLE, role ?: "user")
+            .putString(KEY_USERNAME, username ?: "")
+            .apply()
     }
 
     /** Get stored JWT for authenticated API calls. Null if not logged in. */
     fun getToken(context: Context): String? =
         prefs(context).getString(KEY_JWT, null)?.takeIf { it.isNotBlank() }
 
-    /** Clear stored JWT (e.g. on logout). */
+    /** Get stored user role (e.g. "admin", "user"). Used to show admin dashboard vs home. */
+    fun getRole(context: Context): String? =
+        prefs(context).getString(KEY_ROLE, null)?.takeIf { it.isNotBlank() }
+
+    /** Get stored display name (e.g. for admin bar). */
+    fun getUsername(context: Context): String? =
+        prefs(context).getString(KEY_USERNAME, null)?.takeIf { it.isNotBlank() }
+
+    /** Clear stored JWT, role, and username (e.g. on logout). */
     fun clearToken(context: Context) {
-        prefs(context).edit().remove(KEY_JWT).apply()
+        prefs(context).edit().remove(KEY_JWT).remove(KEY_ROLE).remove(KEY_USERNAME).apply()
     }
 
     private fun request(
@@ -63,8 +77,11 @@ object BackendAuthService {
                         try {
                             val obj = JSONObject(body)
                             val jwt = obj.optString("token", "").takeIf { it.isNotBlank() }
+                            val user = obj.optJSONObject("user")
+                            val role = user?.optString("role", "user")?.takeIf { it.isNotBlank() } ?: "user"
+                            val username = user?.optString("name", "")?.takeIf { it.isNotBlank() }
                             if (jwt != null) {
-                                saveToken(context, jwt)
+                                saveToken(context, jwt, role, username)
                             }
                         } catch (_: Exception) { /* ignore parse failure */ }
                     }
@@ -191,6 +208,70 @@ object BackendAuthService {
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                     onError("Network error: ${e.message}")
                 }
+            }
+        }
+    }
+
+    /** Sign in with email + password (for admin-created homeowner accounts). */
+    fun signInWithEmail(
+        context: Context,
+        email: String,
+        password: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        thread {
+            try {
+                val json = JSONObject().apply {
+                    put("email", email.trim())
+                    put("password", password)
+                }
+                val body = json.toString().toRequestBody("application/json".toMediaType())
+                val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+                val url = "$base/api/auth/login"
+                val request = Request.Builder()
+                    .url(url)
+                    .post(body)
+                    .addHeader("Content-Type", "application/json")
+                    .build()
+                val client = OkHttpClient.Builder()
+                    .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string()
+                if (response.isSuccessful) {
+                    responseBody?.let {
+                        try {
+                            val obj = JSONObject(it)
+                            val jwt = obj.optString("token", "").takeIf { it.isNotBlank() }
+                            val user = obj.optJSONObject("user")
+                            val role = user?.optString("role", "user")?.takeIf { it.isNotBlank() } ?: "user"
+                            val username = user?.optString("name", "")?.takeIf { it.isNotBlank() }
+                            if (jwt != null) {
+                                saveToken(context, jwt, role, username)
+                            }
+                        } catch (_: Exception) { }
+                    }
+                    android.os.Handler(android.os.Looper.getMainLooper()).post { onSuccess() }
+                } else {
+                    val errorMsg = try {
+                        val errorJson = JSONObject(responseBody ?: "{}")
+                        errorJson.optString("detail", errorJson.optString("error", "Unknown error"))
+                    } catch (e: Exception) {
+                        "HTTP ${response.code}: ${responseBody ?: ""}"
+                    }
+                    android.os.Handler(android.os.Looper.getMainLooper()).post { onError(errorMsg) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                val message = when {
+                    e is java.net.SocketTimeoutException || e is java.net.ConnectException ->
+                        "Can't reach server. Check API_BASE_URL in local.properties."
+                    else -> "Network error: ${e.message}"
+                }
+                android.os.Handler(android.os.Looper.getMainLooper()).post { onError(message) }
             }
         }
     }

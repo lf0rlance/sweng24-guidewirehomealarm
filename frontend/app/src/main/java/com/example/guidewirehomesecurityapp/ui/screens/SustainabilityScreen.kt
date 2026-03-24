@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.guidewirehomesecurityapp.ui.components.ScreenTitleWithLogo
 
 @Composable
 fun SustainabilityScreen(modifier: Modifier = Modifier) {
@@ -23,12 +24,10 @@ fun SustainabilityScreen(modifier: Modifier = Modifier) {
             .padding(20.dp)
             .verticalScroll(scrollState)
     ) {
-        Text(
-            text = "Eco",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 8.dp)
+        ScreenTitleWithLogo(
+            title = "Eco",
+            modifier = Modifier.padding(bottom = 8.dp),
+            style = MaterialTheme.typography.headlineMedium
         )
         Text(
             text = "Impact of using our lightweight ESP32-based system instead of heavier alternatives.",

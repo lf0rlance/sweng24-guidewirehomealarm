@@ -5,17 +5,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
+import com.example.guidewirehomesecurityapp.auth.BackendAuthService
 import com.example.guidewirehomesecurityapp.ui.screens.*
+import com.example.guidewirehomesecurityapp.ui.theme.AdminTheme
 import com.example.guidewirehomesecurityapp.ui.theme.LogInTheme
 
 class MainActivity : ComponentActivity() {
 
     sealed class AppScreen {
         object Splash : AppScreen()
-        object Otp : AppScreen()
-
         object Login : AppScreen()
+        object Otp : AppScreen()
         object Home : AppScreen()
+        object AdminDashboard : AppScreen()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,11 +45,28 @@ class MainActivity : ComponentActivity() {
                     AppScreen.Otp -> {
                         OtpScreen(
                             email = otpEmail,
-                            onVerified = { currentScreen = AppScreen.Home }
+                            onVerified = {
+                                currentScreen = if (BackendAuthService.getRole(this) == "admin") {
+                                    AppScreen.AdminDashboard
+                                } else {
+                                    AppScreen.Home
+                                }
+                            }
                         )
                     }
                     AppScreen.Home -> {
-                        HomeScreen(onSignOut = { currentScreen = AppScreen.Login })
+                        HomeScreen(onSignOut = {
+                            BackendAuthService.clearToken(this)
+                            currentScreen = AppScreen.Login
+                        })
+                    }
+                    AppScreen.AdminDashboard -> {
+                        AdminTheme {
+                            AdminDashboardScreen(onSignOut = {
+                                BackendAuthService.clearToken(this)
+                                currentScreen = AppScreen.Login
+                            })
+                        }
                     }
                 }
             }
