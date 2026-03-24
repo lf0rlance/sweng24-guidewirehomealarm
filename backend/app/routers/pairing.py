@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 
 from app.config import settings
+from app.security import get_current_user, AuthenticatedUser
 from app.models.request_models import (
     PairUserRequest,
     ConnectMicrocontrollerRequest,
