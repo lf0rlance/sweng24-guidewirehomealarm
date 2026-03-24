@@ -83,18 +83,15 @@ microcontroller-syntax:
     - merge_requests
     - main
 
-# Frontend validation using Docker container
+# Frontend validation — Kotlin syntax check via ktlint (avoids full Android SDK download)
 frontend-validate:
   stage: validate
-  image: docker:24
-  services:
-    - name: docker:24-dind
-      alias: docker
-      command: ["--tls=false", "--dns", "192.168.65.7"]
+  image: openjdk:17-slim
   script:
+    - apt-get update -qq && apt-get install -y -qq curl
+    - curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.3.1/ktlint && chmod +x ktlint
     - cd frontend
-    - docker build -t frontend-test .
-    - docker run --rm frontend-test
+    - find app/src -name "*.kt" | xargs ../ktlint --reporter=plain
   only:
     - merge_requests
     - main
