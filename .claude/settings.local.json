@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls c:/Users/maksl/OneDrive/Documents/projects/SWENG24/sweng24-guidewirehomealarm/frontend/app/src/main/res/mipmap-*)"
+      "Bash(ls c:/Users/maksl/OneDrive/Documents/projects/SWENG24/sweng24-guidewirehomealarm/frontend/app/src/main/res/mipmap-*)",
+      "Bash(python -m py_compile app/services/event_service.py)",
+      "Bash(pip index:*)",
+      "Bash(pip install:*)"
     ]
   }
 }
