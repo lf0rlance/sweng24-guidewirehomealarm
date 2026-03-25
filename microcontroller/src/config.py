@@ -6,8 +6,8 @@ AP_SSID = "ESP32_HomeAlarm"
 AP_PASSWORD = "Group24"  # Must be at least 8 characters
 
 # Station mode settings 
-WIFI_SSID = "INSERT WIFI SSID"
-WIFI_PASSWORD = "WORDPASS321"
+WIFI_SSID = "Matthew’s bluetooth wheelchair"
+WIFI_PASSWORD = "bruhface"
 
 # Backend configuration
 #Set URL to http:// (INSERT IP here):(INSERT PORT HERE)/api/events
