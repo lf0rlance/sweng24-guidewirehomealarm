@@ -76,10 +76,10 @@ def check_power():
     if now - last_power_check >= POWER_INTERVAL_MS:
         last_power_check = now
         try:
-            # Get real-time current from sensor
+            # Get current from sensor
             i_ma = energy_sensor.current
             
-            # don't handle negative current (If wired incorrectly, display no light.)
+            #If wired incorrectly, display no light.
             i_ma = max(0, i_ma)
             
             # Map current to 0-1023 duty cycle on led 

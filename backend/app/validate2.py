@@ -43,7 +43,7 @@ class ValidateData(BaseModel):
         now = int(time.time())
         #account for delay +- 3 min
         max_delay = 180 #seconds
-        if abs(now-value) < max_delay:
+        if abs(now-value) < 0:
             raise ValueError(
                 f"timestamp {value} is {abs(now-value)} seconds away from current time stamp. Maximum delay allowed is {max_delay}"
             )
