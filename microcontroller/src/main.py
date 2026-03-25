@@ -82,7 +82,7 @@ def check_power():
             # don't handle negative current (If wired incorrectly, display no light.)
             i_ma = max(0, i_ma)
             
-            # Map current to 0-1023 duty cycle
+            # Map current to 0-1023 duty cycle on led 
             # (Current / Max) * 1023
             duty_val = int((i_ma / MAX_CURRENT_EXPECTED) * 1023)
             
@@ -91,7 +91,7 @@ def check_power():
             
             return i_ma
         except Exception:
-            # If the sensor fails, dim the LED to a 'trouble' glow
+            
             led.duty(5) 
     return False
 
