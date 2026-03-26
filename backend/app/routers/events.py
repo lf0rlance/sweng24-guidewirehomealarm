@@ -78,7 +78,7 @@ def receive_event(event: ValidateData):
     # Debug: print current_power_usage events being received
     if event.event_type == "current_power_usage":
         
-        print(f"Power Event #{event.count} received. Usage: {event.value}W")
+        print(f"Power Event #{event.count} received. Usage: {event.value}mA")
 
     # Push only to matching system streams (app can show history either way)
     for queue, client_system_id in connected_clients:
