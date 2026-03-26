@@ -94,7 +94,7 @@ def check_power():
             return i_ma
         except Exception:
             led.duty(5) 
-            return 250
+            return 45
     return False
 
 events.on("door_open", check_door_open)
