@@ -86,7 +86,7 @@ microcontroller-syntax:
 # Frontend validation — Kotlin syntax check via ktlint (avoids full Android SDK download)
 frontend-validate:
   stage: validate
-  image: openjdk:17-slim
+  image: eclipse-temurin:17-jdk-jammy
   script:
     - apt-get update -qq && apt-get install -y -qq curl
     - curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.3.1/ktlint && chmod +x ktlint
