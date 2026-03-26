@@ -125,7 +125,8 @@ class TestTokenOnEventsEndpoints(unittest.TestCase):
         response = self.client.get("/events", headers=auth_header(token))
         self.assertEqual(response.status_code, 401)
 
-    def test_iat_at_current_time_returns_200(self):
+    @patch("app.routers.events.get_alarm_system_id_for_user", return_value=None)
+    def test_iat_at_current_time_returns_200(self, _mock_system_id):
         """iat set to now (no skew) — should pass."""
         token = make_token(iat_offset=0)
         response = self.client.get("/events", headers=auth_header(token))
@@ -133,7 +134,8 @@ class TestTokenOnEventsEndpoints(unittest.TestCase):
 
     # --- valid token ---
 
-    def test_valid_token_get_events_returns_200(self):
+    @patch("app.routers.events.get_alarm_system_id_for_user", return_value=None)
+    def test_valid_token_get_events_returns_200(self, _mock_system_id):
         token = make_token()
         response = self.client.get("/events", headers=auth_header(token))
         self.assertEqual(response.status_code, 200)
@@ -247,7 +249,8 @@ class TestTokenOnEventsPostEndpoint(unittest.TestCase):
     @patch("app.routers.events.is_microcontroller_registered_to_user", return_value=True)
     @patch("app.routers.events.is_duplicate", return_value=False)
     @patch("app.routers.events.is_sequence_valid", return_value=True)
-    def test_valid_token_registered_device_returns_200(self, _seq, _dup, _reg):
+    @patch("app.routers.events.get_alarm_system_id_for_device", return_value=None)
+    def test_valid_token_registered_device_returns_200(self, _mock_alarm_id, _seq, _dup, _reg):
         token = make_token()
         response = self.client.post(
             "/api/events", json=self._valid_payload(), headers=auth_header(token)
