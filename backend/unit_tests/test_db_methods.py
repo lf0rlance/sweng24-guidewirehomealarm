@@ -153,10 +153,37 @@ class TestInsertUserInDB(unittest.TestCase):
         self.assertTrue(result)
         cursor.execute.assert_called_once_with(
             """
-            INSERT INTO user_table(username, email, alarm_system_id, password_hash)
-            VALUES(%s, %s, %s, %s)
+            INSERT INTO user_table(username, email, alarm_system_id, password_hash, role)
+            VALUES(%s, %s, %s, %s, %s)
             """,
-            ("alice", "alice@example.com", 5, "hashed"),
+            ("alice", "alice@example.com", 5, "hashed", "user"),
+        )
+        conn.commit.assert_called_once()
+        conn.rollback.assert_not_called()
+        conn.close.assert_called_once()
+
+    @patch("db.insertIntoDB.bcrypt.gensalt", return_value=b"salt")
+    @patch("db.insertIntoDB.bcrypt.hashpw", return_value=b"hashed")
+    @patch("db.insertIntoDB.connectToDB.connectToDB")
+    def test_insert_user_accepts_custom_role(
+        self, mock_connect_to_db, _mock_hashpw, _mock_gensalt
+    ):
+        conn = MagicMock()
+        cursor = MagicMock()
+        conn.cursor.return_value = cursor
+        mock_connect_to_db.return_value = conn
+
+        result = insertIntoDB.insertUserInDB(
+            "alice", "alice@example.com", 5, "Secret123", role="admin"
+        )
+
+        self.assertTrue(result)
+        cursor.execute.assert_called_once_with(
+            """
+            INSERT INTO user_table(username, email, alarm_system_id, password_hash, role)
+            VALUES(%s, %s, %s, %s, %s)
+            """,
+            ("alice", "alice@example.com", 5, "hashed", "admin"),
         )
         conn.commit.assert_called_once()
         conn.rollback.assert_not_called()
