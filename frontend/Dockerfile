@@ -19,7 +19,7 @@ RUN apt-get update && \
 
 # Accept licenses and install SDK components
 RUN yes | sdkmanager --licenses && \
-    sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+    sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 
 # Copy gradle wrapper and dependencies
 COPY gradlew gradle.properties settings.gradle.kts build.gradle.kts ./

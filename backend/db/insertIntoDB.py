@@ -1,7 +1,8 @@
-from db import connectToDB
-import psycopg2
 import bcrypt
+import psycopg2
 from typing import Optional
+
+from db import connectToDB
 
 
 def insertUserInDB(

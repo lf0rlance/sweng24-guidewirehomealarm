@@ -1,3 +1,4 @@
+#
 from fastapi import APIRouter, HTTPException
 from app.models.request_models import CreateUserRequest
 from app.models.response_models import SimpleStatusResponse
@@ -11,9 +12,9 @@ def create_user(request: CreateUserRequest):
     if not insertUserInDB(
         request.username,
         request.email,
-        request.alarm_system_id,
+        None,
         request.password
     ):
         raise HTTPException(status_code=400, detail="User already exists")
 
-    return {"status": "ok"}
+    return {"status": "ok", "message": "User created"}
