@@ -6,6 +6,7 @@ class EventManager:
     def __init__(self, device_id="esp32_001"):
         self.device_id = device_id
         self.event_count = 0
+        self.event_value = 0
         self.handlers = []
         self.failed_events = []  
     
@@ -16,6 +17,7 @@ class EventManager:
             "event_type": event_type,
             "device_id": self.device_id,
             "count": self.event_count,
+            "value": self.event_value,
             "timestamp": time.time()
         }
         # kwargs passes event data w/o defining specific event parameters
@@ -57,12 +59,15 @@ class EventManager:
         
         for h in self.handlers:
             result = h["trigger"]()
-            
+            print(result)
             if result:
                 if h["handler"]:
                     h["handler"]()
                 
-                data = result if isinstance(result, dict) else {}
-                
+                if isinstance(result, dict):
+                    data = result
+                else:
+                    data = {"value": result}
+                print(data)
                 self.send(h["event_type"], **data)
         

@@ -33,6 +33,8 @@ class ValidateData(BaseModel):
     event_type: Literal["door_open", "door_closed", "alarm_enabled", "alarm_disabled", "led_toggle", "current_power_usage"]
     #count should be of type int and gretater than zero
     count: Annotated[int, Field(gt=0)]
+    # optional value for power usage events
+    value: float | None = None
     #time stamp is in unix format, float number
     timestamp: float
 

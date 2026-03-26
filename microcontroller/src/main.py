@@ -31,9 +31,11 @@ else:
 reed = machine.Pin(4, machine.Pin.IN, machine.Pin.PULL_UP)
 events = EventManager(device_id="esp32_001")
 
-energy_sensor = INA219(i2c, addr=I2C_ADDR)
-energy_sensor.set_calibration_16V_400mA()
-
+try:
+    energy_sensor = INA219(i2c, addr=I2C_ADDR)
+    energy_sensor.set_calibration_16V_400mA()
+except Exception:
+    print("ERROR, continuing")
 last_power_check = 0
 POWER_INTERVAL_MS = 100
 reed_state = reed.value()
@@ -91,8 +93,8 @@ def check_power():
             
             return i_ma
         except Exception:
-            
             led.duty(5) 
+            return 250
     return False
 
 events.on("door_open", check_door_open)
