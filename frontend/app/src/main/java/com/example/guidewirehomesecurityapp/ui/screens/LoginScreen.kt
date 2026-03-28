@@ -43,7 +43,8 @@ import com.example.guidewirehomesecurityapp.ui.components.TopCenterLogo
 @Composable
 fun LoginScreen(
     modifier: Modifier = Modifier,
-    onLoginSuccess: () -> Unit = {}
+    onLoginSuccess: () -> Unit = {},
+    onMfaRequired: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -157,10 +158,13 @@ fun LoginScreen(
                             scope = scope,
                             launcher = launcher,
                             signUp = false,
-                            onSuccess = {
-                                AlarmFirebaseMessagingService.registerTokenAfterLogin(context)
-                                Toast.makeText(context, "Login successful", Toast.LENGTH_SHORT).show()
-                                onLoginSuccess()
+                            onSuccess = { idToken ->
+                                BackendAuthService.signIn(
+                                    context = context,
+                                    idToken = idToken,
+                                    onMfaRequired = { email -> onMfaRequired(email) },
+                                    onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
+                                )
                             },
                             onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
                         )

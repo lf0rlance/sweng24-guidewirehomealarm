@@ -8,43 +8,7 @@ from google.oauth2 import id_token as google_id_token
 import bcrypt
 from app.config import settings
 from db.googleAuth import find_or_create_google_user, find_google_user_only, get_user_by_email_for_password_login
-
-_GOOGLE_ISSUERS = frozenset({"accounts.google.com", "https://accounts.google.com"})
-_GOOGLE_OAUTH2_CERTS_URL = "https://www.googleapis.com/oauth2/v1/certs"
-
-
-def _google_oauth_audiences() -> list[str]:
-    """OAuth client IDs allowed as ID token `aud` (comma-separated in GOOGLE_CLIENT_ID)."""
-    raw = (settings.google_client_id or "").strip()
-    if not raw:
-        raise ValueError(
-            "Server GOOGLE_CLIENT_ID is missing. Set it in backend/.env. Use your Web application "
-            "client ID (same as Android serverClientId). You can add your Android OAuth client ID "
-            "too, comma-separated, if tokens are issued for that client."
-        )
-    return [p.strip() for p in raw.split(",") if p.strip()]
-
-
-def _token_aud_matches_allowed(claim_aud, allowed: list[str]) -> bool:
-    """Google may send `aud` as a string or a list of strings; google.auth.jwt only handles the string case."""
-    if claim_aud is None:
-        return False
-    allow = set(allowed)
-    if isinstance(claim_aud, str):
-        return claim_aud in allow
-    if isinstance(claim_aud, list):
-        return bool(set(claim_aud) & allow)
-    return False
-
-
-def _google_client_allowed(idinfo: dict, allowed: list[str]) -> bool:
-    """Match token `aud` (string or list) or `azp` (authorized party) against allowed OAuth client IDs."""
-    if _token_aud_matches_allowed(idinfo.get("aud"), allowed):
-        return True
-    azp = idinfo.get("azp")
-    if isinstance(azp, str) and azp in set(allowed):
-        return True
-    return False
+from app.services.otp_service import generate_otp, send_otp_email, verify_otp
 
 
 def verify_google_token(id_token_str: str):
@@ -53,20 +17,11 @@ def verify_google_token(id_token_str: str):
     # Verify signature and time claims only; google.auth's audience check fails when `aud` is a list.
     idinfo = google_id_token.verify_token(
         id_token_str,
-        request,
-        audience=None,
-        certs_url=_GOOGLE_OAUTH2_CERTS_URL,
+        google_requests.Request(),
+        settings.google_client_id
     )
-    if idinfo.get("iss") not in _GOOGLE_ISSUERS:
-        raise google_exceptions.GoogleAuthError(
-            f"Wrong issuer: expected one of {_GOOGLE_ISSUERS!r}, got {idinfo.get('iss')!r}"
-        )
-    if not _google_client_allowed(idinfo, allowed):
-        raise ValueError(
-            f"Token aud={idinfo.get('aud')!r} azp={idinfo.get('azp')!r} not in GOOGLE_CLIENT_ID. "
-            f"Configured allowed: {allowed}. "
-            "Use Web + Android OAuth client IDs from the same GCP project, comma-separated in .env."
-        )
+    if idinfo["aud"] != settings.google_client_id:
+        raise ValueError("Invalid audience")
     return idinfo
 
 
@@ -77,7 +32,6 @@ def build_user_response(user: dict):
         settings.jwt_secret,
         algorithm="HS256"
     )
-
     return {
         "token": token,
         "user": {
@@ -92,30 +46,45 @@ def build_user_response(user: dict):
 
 def signup_user(idToken: str):
     idinfo = verify_google_token(idToken)
-
     google_id = idinfo.get("sub")
     email = idinfo.get("email")
     name = idinfo.get("name", email.split("@")[0])
-
     if find_google_user_only(google_id, email, name):
         raise Exception("Account already exists")
-
     user = find_or_create_google_user(google_id, email, name)
     return build_user_response(user)
 
 
 def signin_user(idToken: str):
     idinfo = verify_google_token(idToken)
-
     google_id = idinfo.get("sub")
     email = idinfo.get("email")
     name = idinfo.get("name", email.split("@")[0])
-
     user = find_google_user_only(google_id, email, name)
-
     if not user:
         raise Exception("Account does not exist")
+    return build_user_response(user)
 
+
+def signin_user_mfa(idToken: str):
+    idinfo = verify_google_token(idToken)
+    google_id = idinfo.get("sub")
+    email = idinfo.get("email")
+    name = idinfo.get("name", email.split("@")[0])
+    user = find_google_user_only(google_id, email, name)
+    if not user:
+        raise Exception("Account does not exist")
+    code = generate_otp(email)
+    send_otp_email(email, code)
+    return {"mfa_required": True, "email": email}
+
+
+def verify_otp_and_signin(email: str, code: str):
+    if not verify_otp(email, code):
+        raise Exception("Invalid or expired code")
+    user = find_google_user_only("", email, "")
+    if not user:
+        raise Exception("User not found")
     return build_user_response(user)
 
 

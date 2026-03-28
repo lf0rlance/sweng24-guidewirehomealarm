@@ -24,9 +24,9 @@ class GoogleSignInUtils {
             scope: CoroutineScope,
             launcher: ManagedActivityResultLauncher<Intent, ActivityResult>?,
             signUp: Boolean,
-            onSuccess: () -> Unit,
+            onSuccess: (String) -> Unit,
             onError: (String) -> Unit
-        ) {
+        ){
             val credentialManager = CredentialManager.create(context)
             val request = GetCredentialRequest.Builder()
                 .addCredentialOption(getCredentialOptions(context))
@@ -40,9 +40,10 @@ class GoogleSignInUtils {
                                 val cred = GoogleIdTokenCredential.createFrom(result.credential.data)
                                 val idToken = cred.idToken
                                 if (signUp) {
-                                    BackendAuthService.signUp(context, idToken, onSuccess, onError)
+                                    BackendAuthService.signUp(context, idToken, { onSuccess(idToken) }, onError)
                                 } else {
-                                    BackendAuthService.signIn(context, idToken, onSuccess, onError)
+                                    // signIn handles MFA internally, onSuccess not used for signin path
+                                    onSuccess(idToken)
                                 }
                             }
                         }
