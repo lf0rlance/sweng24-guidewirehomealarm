@@ -38,6 +38,13 @@ class SimpleStatusResponse(BaseModel):
     status: str
     message: str
 
+class OtpVerifyRequest(BaseModel):
+    email: str
+    code: str
+
+class MfaRequiredResponse(BaseModel):
+    mfa_required: bool
+    email: str
 
 # Admin-only request bodies
 class SetSensorLabelsRequest(BaseModel):
