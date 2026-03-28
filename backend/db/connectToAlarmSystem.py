@@ -1,3 +1,5 @@
+import bcrypt
+
 from db import connectToDB
 import re
 
@@ -95,34 +97,54 @@ def ensure_user_has_alarm_system(user_id: int) -> int | None:
     return get_alarm_system_id_by_user_id(user_id)
 
 
-def connectUserToSystem(username: str) -> None:
-    systemId = getCurrentAlarmSystemID(username)
-
-    if(systemId == None):
-        print("You have to pair your account with alarm system")
-        
+def connectUserToSystem(user_id: int, system_password: str) -> bool:
+    try:
         conn = connectToDB.connectToDB()
-
         cursor = conn.cursor()
 
-        systemId, password = addAvailableSystems.create_alarm_system(cursor)
-        print(f"Created alarm system {systemId} with password {password}")
+        cursor.execute("SELECT alarm_system_id FROM user_table WHERE id = %s", (user_id,))
+        user_row = cursor.fetchone()
+        if not user_row:
+            return False
+
+        current_system_id = user_row[0]
+        if current_system_id is not None:
+            return False
 
         cursor.execute(
-        """
-        UPDATE user_table
-        SET alarm_system_id = %s
-        WHERE username = %s
-        """,
-        (systemId, username)
+            """
+            SELECT alarm_system_id, system_password_hash
+            FROM alarm_system_table
+            WHERE paired = FALSE
+            """
         )
+        candidates = cursor.fetchall()
 
-        cursor.execute("UPDATE alarm_system_table SET paired = %s WHERE alarm_system_id = %s", ("T", systemId))
+        matched_system_id = None
+        for alarm_system_id, password_hash in candidates:
+            if bcrypt.checkpw(system_password.encode(), password_hash.encode()):
+                matched_system_id = alarm_system_id
+                break
+
+        if matched_system_id is None:
+            return False
+
+        cursor.execute(
+            """
+            UPDATE user_table
+            SET alarm_system_id = %s
+            WHERE id = %s
+            """,
+            (matched_system_id, user_id),
+        )
+        cursor.execute(
+            "UPDATE alarm_system_table SET paired = TRUE WHERE alarm_system_id = %s",
+            (matched_system_id,),
+        )
         conn.commit()
-
-    else:
-        print(f"You are paired already to system {systemId}")
-
-#testing
-if __name__ == "__main__":
-    connectUserToSystem("test2")
+        return True
+    except Exception:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()

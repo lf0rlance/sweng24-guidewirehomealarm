@@ -1,10 +1,17 @@
-from db import connectToDB
-import psycopg2
 import bcrypt
+import psycopg2
 from typing import Optional
 
+from db import connectToDB
 
-def insertUserInDB(username: str, email: str, alarm_system_id: int | None, password: str) -> bool:
+
+def insertUserInDB(
+    username: str,
+    email: str,
+    alarm_system_id: int | None,
+    password: str,
+    role: str = "user",
+) -> bool:
     conn = connectToDB.connectToDB()
 
     password_hash = bcrypt.hashpw(
@@ -17,9 +24,9 @@ def insertUserInDB(username: str, email: str, alarm_system_id: int | None, passw
         cursor.execute(
             """
             INSERT INTO user_table(username, email, alarm_system_id, password_hash, role)
-            VALUES(%s, %s, %s, %s, 'user')
+            VALUES(%s, %s, %s, %s, %s)
             """,
-            (username, email, alarm_system_id, password_hash)
+            (username, email, alarm_system_id, password_hash, role)
         )
 
         conn.commit()
