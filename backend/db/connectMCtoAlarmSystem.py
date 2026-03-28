@@ -1,6 +1,7 @@
 import psycopg2
-from db import connectToDB
+
 from db import connectToAlarmSystem
+from db import connectToDB
 
 
 def connectMicroController(microControllerId: int, username: str) -> bool:
@@ -42,8 +43,5 @@ def connect_microcontroller_by_user_id(user_id: int, micro_controller_id: int) -
     if not username:
         return False
     if connectToAlarmSystem.get_alarm_system_id_by_user_id(user_id) is None:
-        connectToAlarmSystem.connectUserToSystem(username)
+        return False
     return connectMicroController(micro_controller_id, username)
-
-if __name__ == "__main__":
-    connectMicroController("666", "luhinm")
