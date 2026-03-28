@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 
 from app.config import settings
+from app.security import get_current_user, AuthenticatedUser
 from app.models.request_models import (
     PairUserRequest,
     ConnectMicrocontrollerRequest,
@@ -36,23 +37,29 @@ def get_current_user_id(
 
 
 @router.post("/api/pair", response_model=SimpleStatusResponse)
-def pair_user(request: PairUserRequest):
-    if not connectUserToSystem(request.username, request.system_password):
+def pair_user(
+    request: PairUserRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    if not connectUserToSystem(current_user.user_id, request.system_password):
         raise HTTPException(status_code=400, detail="Pairing failed")
 
-    return {"status": "ok"}
+    return {"status": "ok", "message": "Paired successfully"}
 
 
 @router.post("/api/microcontroller/connect", response_model=MicrocontrollerConnectResponse)
-def connect_microcontroller(request: ConnectMicrocontrollerRequest):
-    system_id = getCurrentAlarmSystemID(request.username)
+def connect_microcontroller(
+    request: ConnectMicrocontrollerRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    system_id = getCurrentAlarmSystemID(current_user.user_id)
 
     if system_id is None:
         raise HTTPException(status_code=400, detail="User not paired")
 
     if not connectMicroController(
         microControllerId=request.microcontroller_id,
-        username=request.username
+        user_id=current_user.user_id,
     ):
         raise HTTPException(status_code=400, detail="Connection failed")
 
