@@ -171,7 +171,7 @@ build-frontend:
         echo "Push failed, retrying in ${SLEEP_SECONDS}s..."
         sleep "$SLEEP_SECONDS"
         ATTEMPT=$((ATTEMPT + 1))
-      fi
+      done
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
