@@ -111,7 +111,6 @@ build-backend:
     - name: docker:24-dind
       alias: docker
       command: ["--tls=false", "--dns", "192.168.65.7"]
-  timeout: 1h 30m
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -119,18 +118,14 @@ build-backend:
     - cd backend
     - |
       if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        echo "[BUILD] Building backend for main branch..."
-        docker buildx build --platform linux/amd64 --progress plain \
+        docker buildx build --platform linux/amd64\
           -t $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA \
           -t $BACKEND_IMAGE:latest \
           --push .
-        echo "[PUSH] Backend image pushed successfully"
       else
-        echo "[BUILD] Building backend for $CI_COMMIT_REF_SLUG..."
-        docker buildx build --platform linux/amd64 --progress plain \
+        docker buildx build --platform linux/amd64 \
           -t $BACKEND_IMAGE:pre-main-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA \
           --push .
-        echo "[PUSH] Backend pre-release image pushed successfully"
       fi
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
@@ -138,7 +133,50 @@ build-backend:
     - if: '$CI_COMMIT_BRANCH'
       when: manual
 
+# Build frontend Docker image
+build-frontend:
+  stage: build
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      alias: docker
+      command: ["--tls=false", "--dns", "192.168.65.7"]
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker buildx create --use
+  script:
+    - cd frontend
+    - |
+      set -e
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        TAG_ARGS="-t $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA -t $FRONTEND_IMAGE:latest"
+      else
+        TAG_ARGS="-t $FRONTEND_IMAGE:pre-main-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA"
+      fi
 
+      ATTEMPT=1
+      MAX_ATTEMPTS=3
+      until [ "$ATTEMPT" -gt "$MAX_ATTEMPTS" ]; do
+        echo "Frontend image push attempt $ATTEMPT/$MAX_ATTEMPTS"
+        if docker buildx build --platform linux/amd64 $TAG_ARGS --push .; then
+          break
+        fi
+
+        if [ "$ATTEMPT" -eq "$MAX_ATTEMPTS" ]; then
+          echo "Frontend image push failed after $MAX_ATTEMPTS attempts"
+          exit 1
+        fi
+
+        SLEEP_SECONDS=$((ATTEMPT * 10))
+        echo "Push failed, retrying in ${SLEEP_SECONDS}s..."
+        sleep "$SLEEP_SECONDS"
+        ATTEMPT=$((ATTEMPT + 1))
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
 
 # Build microcontroller Docker image
 build-microcontroller:
@@ -148,7 +186,6 @@ build-microcontroller:
     - name: docker:24-dind
       alias: docker
       command: ["--tls=false", "--dns", "192.168.65.7"]
-  timeout: 1h 30m
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -156,18 +193,14 @@ build-microcontroller:
     - cd microcontroller
     - |
       if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        echo "[BUILD] Building microcontroller for main branch..."
-        docker buildx build --platform linux/amd64 --progress plain \
+        docker buildx build --platform linux/amd64 \
           -t $MICROCONTROLLER_IMAGE:$CI_COMMIT_SHORT_SHA \
           -t $MICROCONTROLLER_IMAGE:latest \
           --push .
-        echo "[PUSH] Microcontroller image pushed successfully"
       else
-        echo "[BUILD] Building microcontroller for $CI_COMMIT_REF_SLUG..."
-        docker buildx build --platform linux/amd64 --progress plain \
+        docker buildx build --platform linux/amd64 \
           -t $MICROCONTROLLER_IMAGE:pre-main-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA \
           --push .
-        echo "[PUSH] Microcontroller pre-release image pushed successfully"
       fi
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
