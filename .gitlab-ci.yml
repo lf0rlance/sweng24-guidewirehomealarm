@@ -111,6 +111,7 @@ build-backend:
     - name: docker:24-dind
       alias: docker
       command: ["--tls=false", "--dns", "192.168.65.7"]
+  timeout: 1h 30m
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -118,14 +119,18 @@ build-backend:
     - cd backend
     - |
       if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        docker buildx build --platform linux/amd64\
+        echo "[BUILD] Building backend for main branch..."
+        docker buildx build --platform linux/amd64 --progress plain \
           -t $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA \
           -t $BACKEND_IMAGE:latest \
           --push .
+        echo "[PUSH] Backend image pushed successfully"
       else
-        docker buildx build --platform linux/amd64 \
+        echo "[BUILD] Building backend for $CI_COMMIT_REF_SLUG..."
+        docker buildx build --platform linux/amd64 --progress plain \
           -t $BACKEND_IMAGE:pre-main-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA \
           --push .
+        echo "[PUSH] Backend pre-release image pushed successfully"
       fi
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
@@ -133,35 +138,7 @@ build-backend:
     - if: '$CI_COMMIT_BRANCH'
       when: manual
 
-# Build frontend Docker image
-build-frontend:
-  stage: build
-  image: docker:24
-  services:
-    - name: docker:24-dind
-      alias: docker
-      command: ["--tls=false", "--dns", "192.168.65.7"]
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker buildx create --use
-  script:
-    - cd frontend
-    - |
-      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        docker buildx build --platform linux/amd64 \
-          -t $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA \
-          -t $FRONTEND_IMAGE:latest \
-          --push .
-      else
-        docker buildx build --platform linux/amd64 \
-          -t $FRONTEND_IMAGE:pre-main-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA \
-          --push .
-      fi
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: manual
-    - if: '$CI_COMMIT_BRANCH'
-      when: manual
+
 
 # Build microcontroller Docker image
 build-microcontroller:
@@ -171,6 +148,7 @@ build-microcontroller:
     - name: docker:24-dind
       alias: docker
       command: ["--tls=false", "--dns", "192.168.65.7"]
+  timeout: 1h 30m
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker buildx create --use
@@ -178,14 +156,18 @@ build-microcontroller:
     - cd microcontroller
     - |
       if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        docker buildx build --platform linux/amd64 \
+        echo "[BUILD] Building microcontroller for main branch..."
+        docker buildx build --platform linux/amd64 --progress plain \
           -t $MICROCONTROLLER_IMAGE:$CI_COMMIT_SHORT_SHA \
           -t $MICROCONTROLLER_IMAGE:latest \
           --push .
+        echo "[PUSH] Microcontroller image pushed successfully"
       else
-        docker buildx build --platform linux/amd64 \
+        echo "[BUILD] Building microcontroller for $CI_COMMIT_REF_SLUG..."
+        docker buildx build --platform linux/amd64 --progress plain \
           -t $MICROCONTROLLER_IMAGE:pre-main-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA \
           --push .
+        echo "[PUSH] Microcontroller pre-release image pushed successfully"
       fi
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
