@@ -45,11 +45,16 @@ object EventService {
                 val arr = JSONArray(body)
                 List(arr.length()) { i ->
                     val obj = arr.getJSONObject(i)
+                    val v = when {
+                        !obj.has("value") || obj.isNull("value") -> null
+                        else -> obj.optDouble("value", Double.NaN).takeUnless { it.isNaN() }
+                    }
                     SensorEvent(
                         device_id = obj.optString("device_id", ""),
                         event_type = obj.optString("event_type", ""),
                         count = obj.optInt("count", 0),
-                        timestamp = obj.optDouble("timestamp", 0.0)
+                        timestamp = obj.optDouble("timestamp", 0.0),
+                        value = v,
                     )
                 }
             }
@@ -104,6 +109,56 @@ object EventService {
             client.newCall(request).execute().use { it.isSuccessful }
         } catch (_: Exception) {
             false
+        }
+    }
+
+    /** Admin-configured names: index 0 = first reed (D4), 1 = second (D14). */
+    fun getSensorLabels(context: Context, serverBaseUrl: String = serverBaseUrl()): List<String> {
+        val url = "$serverBaseUrl/api/sensor-labels"
+        val token = BackendAuthService.getToken(context) ?: return emptyList()
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .addHeader("Authorization", "Bearer $token")
+            .build()
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return emptyList()
+                val obj = JSONObject(response.body?.string() ?: "{}")
+                val arr = obj.optJSONArray("labels") ?: return emptyList()
+                List(arr.length()) { i -> arr.optString(i, "") }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    data class PowerSample(val deviceId: String, val timestamp: Double, val valueMa: Double)
+
+    /** Recent power samples (mA) for the Eco tab chart. */
+    fun getPowerRecent(context: Context, serverBaseUrl: String = serverBaseUrl()): List<PowerSample> {
+        val url = "$serverBaseUrl/api/power/recent"
+        val token = BackendAuthService.getToken(context) ?: return emptyList()
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .addHeader("Authorization", "Bearer $token")
+            .build()
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return emptyList()
+                val arr = JSONArray(response.body?.string() ?: "[]")
+                List(arr.length()) { i ->
+                    val o = arr.getJSONObject(i)
+                    PowerSample(
+                        deviceId = o.optString("device_id", ""),
+                        timestamp = o.optDouble("timestamp", 0.0),
+                        valueMa = o.optDouble("value_ma", 0.0),
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 }

@@ -185,7 +185,8 @@ fun HomeScreen(
                     )
 
                     HomeTab.Control -> ControlSecurityScreen(
-                        modifier = Modifier.padding(innerPadding)
+                        modifier = Modifier.padding(innerPadding),
+                        events = events
                     )
 
                     HomeTab.History -> SensorHistoryScreen(

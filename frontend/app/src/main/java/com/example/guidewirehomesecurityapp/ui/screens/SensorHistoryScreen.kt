@@ -75,6 +75,7 @@ fun SensorHistoryScreen(
 
     val filteredEvents = events
         .asSequence()
+        .filter { it.event_type != "current_power_usage" }
         .filter { event ->
             when (selectedType) {
                 "all" -> true

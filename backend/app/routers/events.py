@@ -17,7 +17,8 @@ from app.services.event_service import (
     is_duplicate,
     is_sequence_valid,
 )
-from db.events import save_event, get_events_for_system
+from db.events import save_event, get_events_for_system, get_power_samples_for_system
+from db.sensor_labels import get_sensor_labels
 from db.device_last_seen import update_last_seen
 from app.services.notification_service import send_push_for_event
 
@@ -133,8 +134,30 @@ def get_events(current_user: AuthenticatedUser = Depends(get_current_user)):
     if alarm_system_id is None:
         return []
 
-    events = get_events_for_system(alarm_system_id, armed_only=True)
+    events = get_events_for_system(
+        alarm_system_id,
+        armed_only=True,
+        exclude_event_types=["current_power_usage"],
+    )
     return events
+
+
+@router.get("/api/sensor-labels")
+def get_my_sensor_labels(current_user: AuthenticatedUser = Depends(get_current_user)):
+    """Display names for sensors (positions 0 = first reed, 1 = second) set by admin."""
+    alarm_system_id = get_alarm_system_id_for_user(current_user.user_id)
+    if alarm_system_id is None:
+        return {"labels": []}
+    return {"labels": get_sensor_labels(alarm_system_id)}
+
+
+@router.get("/api/power/recent")
+def get_recent_power(current_user: AuthenticatedUser = Depends(get_current_user)):
+    """Recent power readings (mA) for live energy view; not filtered by armed state."""
+    alarm_system_id = get_alarm_system_id_for_user(current_user.user_id)
+    if alarm_system_id is None:
+        return []
+    return get_power_samples_for_system(alarm_system_id, limit=120)
 
 
 @router.get("/events/stream")

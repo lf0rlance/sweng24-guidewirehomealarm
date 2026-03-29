@@ -27,7 +27,11 @@ def get_sensor_labels(alarm_system_id: int) -> List[str]:
 
 
 def set_sensor_labels(alarm_system_id: int, labels: List[str]) -> bool:
-    """Replace all sensor labels for this home. labels[i] = display name for position i."""
+    """
+    Replace sensor labels for this home.
+    Position 0 = first reed (e.g. D4), position 1 = second reed (e.g. D14).
+    Up to two entries; empty strings skip that position.
+    """
     conn = connectToDB.connectToDB()
     try:
         cur = conn.cursor()
@@ -35,11 +39,14 @@ def set_sensor_labels(alarm_system_id: int, labels: List[str]) -> bool:
             "DELETE FROM sensor_labels WHERE alarm_system_id = %s",
             (alarm_system_id,),
         )
-        for pos, label in enumerate(labels):
-            if label and str(label).strip():
+        for pos in range(2):
+            if pos >= len(labels):
+                break
+            label = (labels[pos] or "").strip()
+            if label:
                 cur.execute(
                     "INSERT INTO sensor_labels (alarm_system_id, position, label) VALUES (%s, %s, %s)",
-                    (alarm_system_id, pos, str(label).strip()),
+                    (alarm_system_id, pos, label),
                 )
         conn.commit()
         return True

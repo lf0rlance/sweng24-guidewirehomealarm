@@ -8,7 +8,9 @@ data class SensorEvent(
     val device_id: String,
     val event_type: String,
     val count: Int,
-    val timestamp: Double
+    val timestamp: Double,
+    /** mA for [current_power_usage] events when backend stores it */
+    val value: Double? = null,
 ) {
     /** Human-readable label for event_type (e.g. door_open → "Door opened") */
     fun displayType(): String = when (event_type) {

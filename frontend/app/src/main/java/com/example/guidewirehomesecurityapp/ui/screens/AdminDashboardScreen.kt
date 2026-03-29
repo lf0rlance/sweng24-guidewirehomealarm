@@ -521,31 +521,45 @@ private fun SensorLabelsDialog(
     onDismiss: () -> Unit,
     onSave: (List<String>) -> Unit
 ) {
-    var text by remember(home.alarmSystemId) {
-        mutableStateOf(home.sensorLabels.joinToString("\n"))
+    var name1 by remember(home.alarmSystemId) {
+        mutableStateOf(home.sensorLabels.getOrNull(0) ?: "")
+    }
+    var name2 by remember(home.alarmSystemId) {
+        mutableStateOf(home.sensorLabels.getOrNull(1) ?: "")
     }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Sensor names — ${home.name.ifBlank { home.deviceId }}") },
         text = {
-            Column {
-                Text("One name per line (e.g. Front door, Back window)", style = MaterialTheme.typography.bodySmall)
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    "These names appear for the homeowner on the Control tab. Sensor 1 = first reed (GPIO 4), sensor 2 = second reed (GPIO 14).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = name1,
+                    onValueChange = { name1 = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Sensor 1") },
+                    placeholder = { Text("e.g. Front door") }
+                )
                 Spacer(Modifier.height(8.dp))
-                BasicTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                        .padding(8.dp),
-                    textStyle = MaterialTheme.typography.bodyMedium
+                OutlinedTextField(
+                    value = name2,
+                    onValueChange = { name2 = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Sensor 2") },
+                    placeholder = { Text("e.g. Window, back door") }
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onSave(text.split("\n").map { it.trim() }.filter { it.isNotBlank() })
+                onSave(listOf(name1.trim(), name2.trim()))
             }) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
