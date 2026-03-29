@@ -209,7 +209,12 @@ object BackendAuthService {
                     responseBody?.let {
                         val obj = JSONObject(it)
                         val jwt = obj.optString("token", "").takeIf { t -> t.isNotBlank() }
-                        if (jwt != null) saveToken(context, jwt)
+                        if (jwt != null) {
+                            val user = obj.optJSONObject("user")
+                            val role = user?.optString("role", "user")?.takeIf { r -> r.isNotBlank() } ?: "user"
+                            val username = user?.optString("name", "")?.takeIf { n -> n.isNotBlank() }
+                            saveToken(context, jwt, role, username)
+                        }
                     }
                     android.os.Handler(android.os.Looper.getMainLooper()).post { onSuccess() }
                 } else {
