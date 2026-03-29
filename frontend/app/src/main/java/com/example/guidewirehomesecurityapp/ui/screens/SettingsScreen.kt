@@ -14,8 +14,13 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +42,7 @@ fun SettingsScreen(
     val scrollState = rememberScrollState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var pairPassword by remember { mutableStateOf("") }
 
     Column(
         modifier = modifier
@@ -61,6 +67,59 @@ fun SettingsScreen(
             shape = CardDefaults.elevatedShape
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "1. Pair to your home (once)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Text(
+                    text = "Enter the alarm system password for an unpaired home (from your admin/setup). Then link each ESP32 below.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.typography.bodySmall.color.copy(alpha = 0.85f),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                OutlinedTextField(
+                    value = pairPassword,
+                    onValueChange = { pairPassword = it },
+                    label = { Text("Home alarm password (8+ characters)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            val pwd = pairPassword.trim()
+                            if (pwd.length < 8) {
+                                Toast.makeText(
+                                    context,
+                                    "Password must be at least 8 characters.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                return@launch
+                            }
+                            val ok = withContext(Dispatchers.IO) {
+                                EventService.pairWithHome(context, pwd)
+                            }
+                            Toast.makeText(
+                                context,
+                                if (ok) "Paired to your home. You can link ESP32s below." else "Pairing failed. Check password, or ask an admin to assign your account.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Pair account to home")
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "2. Link ESP32 hardware",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
                 OutlinedButton(
                     onClick = {
                         scope.launch {

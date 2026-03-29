@@ -1,4 +1,5 @@
 #
+import time
 import jwt
 from google.auth import exceptions as google_exceptions
 from google.auth.transport import requests as google_requests
@@ -22,6 +23,10 @@ def _google_oauth_audiences() -> list[str]:
             "same as Android serverClientId; add Android OAuth client too, comma-separated, if needed)."
         )
     return [p.strip() for p in raw.split(",") if p.strip()]
+
+
+# Alias for any stale code or typos expecting this name without the leading underscore.
+google_oauth_audiences = _google_oauth_audiences
 
 
 def _token_aud_matches_allowed(claim_aud, allowed: list[str]) -> bool:
@@ -66,10 +71,20 @@ def verify_google_token(id_token_str: str):
 
 def build_user_response(user: dict):
     role = user.get("role") or "user"
+    uid = user["id"]
+    now = int(time.time())
+    # Claims required by app.security.get_current_user (sub, iat, exp) for /api/pair, GET /events, etc.
     token = jwt.encode(
-        {"userId": user["id"], "email": user["email"], "role": role},
+        {
+            "userId": uid,
+            "sub": str(uid),
+            "email": user["email"],
+            "role": role,
+            "iat": now,
+            "exp": now + 7 * 24 * 3600,
+        },
         settings.jwt_secret,
-        algorithm="HS256"
+        algorithm="HS256",
     )
     return {
         "token": token,

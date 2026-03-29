@@ -56,7 +56,10 @@ def get_current_user(
     payload = _decode_access_token(credentials.credentials)
 
     try:
-        user_id = int(payload["sub"])
+        raw_id = payload.get("userId")
+        if raw_id is None and payload.get("sub") is not None:
+            raw_id = payload["sub"]
+        user_id = int(raw_id)
         email = str(payload["email"])
     except (KeyError, TypeError, ValueError):
         raise HTTPException(

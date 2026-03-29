@@ -63,6 +63,30 @@ object EventService {
      * so real hardware sensor events show in the app. Call from background thread (e.g. Dispatchers.IO).
      * @return true if linked successfully, false otherwise.
      */
+    /**
+     * POST /api/pair — assign the logged-in user to an unpaired alarm home using the system password (min 8 chars).
+     * Must succeed before "Link ESP32" if the account was created via Google and has no home yet.
+     */
+    fun pairWithHome(context: Context, systemPassword: String, serverBaseUrl: String = serverBaseUrl()): Boolean {
+        val url = "$serverBaseUrl/api/pair"
+        val token = BackendAuthService.getToken(context)
+        if (token.isNullOrBlank()) return false
+        val body = JSONObject().apply { put("system_password", systemPassword) }
+            .toString()
+            .toRequestBody("application/json".toMediaType())
+        val request = Request.Builder()
+            .url(url)
+            .post(body)
+            .addHeader("Authorization", "Bearer $token")
+            .addHeader("Content-Type", "application/json")
+            .build()
+        return try {
+            client.newCall(request).execute().use { it.isSuccessful }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     fun connectDevice(context: Context, microcontrollerId: Int = 1, serverBaseUrl: String = serverBaseUrl()): Boolean {
         val url = "$serverBaseUrl/api/device/connect"
         val token = BackendAuthService.getToken(context)

@@ -13,6 +13,7 @@ from app.models.response_models import SimpleStatusResponse, MicrocontrollerConn
 from db.connectToAlarmSystem import (
     connectUserToSystem,
     get_alarm_system_id_by_user_id,
+    get_username_by_user_id,
 )
 from db.connectMCtoAlarmSystem import connect_microcontroller_by_user_id
 
@@ -75,8 +76,21 @@ def connect_device(
     user_id: int = Depends(get_current_user_id),
 ):
     """Link your ESP32 (e.g. esp32_001 = microcontroller_id 1) to your account so real sensor events show in the app."""
+    if not get_username_by_user_id(user_id):
+        raise HTTPException(status_code=400, detail="User not found.")
+    if get_alarm_system_id_by_user_id(user_id) is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Not assigned to a home yet. Pair with your alarm system password first "
+                "(Settings in the app), or ask an admin to add your account to a home."
+            ),
+        )
     if not connect_microcontroller_by_user_id(user_id, request.microcontroller_id):
-        raise HTTPException(status_code=400, detail="Could not link device. Try again.")
+        raise HTTPException(
+            status_code=400,
+            detail="Could not link device (database error). Try again.",
+        )
     from db.connectToAlarmSystem import get_alarm_system_id_by_user_id
     alarm_system_id = get_alarm_system_id_by_user_id(user_id)
     return {"status": "ok", "alarm_system_id": alarm_system_id or 0}
