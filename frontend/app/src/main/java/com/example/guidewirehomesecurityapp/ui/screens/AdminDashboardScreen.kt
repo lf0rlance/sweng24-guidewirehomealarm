@@ -73,6 +73,8 @@ fun AdminDashboardScreen(
     var offlineCount by remember { mutableStateOf(0) }
     var loading by remember { mutableStateOf(true) }
     var addHomeResult by remember { mutableStateOf<AdminService.AddHomeResult?>(null) }
+    var showAddHomeDialog by remember { mutableStateOf(false) }
+    var addHomeMcIdText by remember { mutableStateOf("") }
     var expandedHomeId by remember { mutableStateOf<Int?>(null) }
     var sensorDialogHome by remember { mutableStateOf<AdminHome?>(null) }
     var userDialogHome by remember { mutableStateOf<AdminHome?>(null) }
@@ -94,6 +96,64 @@ fun AdminDashboardScreen(
     }
 
     LaunchedEffect(Unit) { loadData() }
+
+    if (showAddHomeDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showAddHomeDialog = false
+                addHomeMcIdText = ""
+            },
+            title = { Text("Add home") },
+            text = {
+                Column {
+                    Text(
+                        "Optional: enter the ESP board number so it matches firmware DEVICE_ID " +
+                            "(e.g. 2 → esp32_2). Leave empty to use the next free id.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = addHomeMcIdText,
+                        onValueChange = { addHomeMcIdText = it.filter { c -> c.isDigit() } },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Microcontroller id (optional)") },
+                        placeholder = { Text("e.g. 2") }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        val id = addHomeMcIdText.trim().toIntOrNull()
+                        val result = withContext(Dispatchers.IO) {
+                            AdminService.addHome(context, microcontrollerId = id)
+                        }
+                        showAddHomeDialog = false
+                        addHomeMcIdText = ""
+                        addHomeResult = result
+                        if (result != null) {
+                            loadData()
+                            Toast.makeText(context, "Home added: ${result.deviceId}", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Failed — try another id or leave blank (id may already exist)",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }) { Text("Add") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAddHomeDialog = false
+                    addHomeMcIdText = ""
+                }) { Text("Cancel") }
+            }
+        )
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -120,18 +180,7 @@ fun AdminDashboardScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = {
-                    scope.launch {
-                        val result = withContext(Dispatchers.IO) { AdminService.addHome(context) }
-                        addHomeResult = result
-                        if (result != null) {
-                            loadData()
-                            Toast.makeText(context, "Home added: ${result.deviceId}", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Failed to add home", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                },
+                onClick = { showAddHomeDialog = true },
                 shape = RoundedCornerShape(16.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary

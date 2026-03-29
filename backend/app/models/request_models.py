@@ -47,6 +47,17 @@ class MfaRequiredResponse(BaseModel):
     email: str
 
 # Admin-only request bodies
+class AddHomeRequest(BaseModel):
+    """Optional fixed ESP / microcontroller id so DB matches firmware DEVICE_ID (e.g. esp32_2 → id 2)."""
+
+    microcontroller_id: int | None = Field(
+        default=None,
+        ge=1,
+        le=999_999,
+        description="If set, create this board id; must not already exist. Omit for next auto id.",
+    )
+
+
 class SetSensorLabelsRequest(BaseModel):
     labels: list[str]  # e.g. ["Front door", "Back door", "Living room window"]
 

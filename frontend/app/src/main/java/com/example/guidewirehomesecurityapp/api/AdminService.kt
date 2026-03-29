@@ -100,16 +100,24 @@ object AdminService {
         }
     }
 
-    data class AddHomeResult(val alarmSystemId: Int, val deviceId: String)
-    fun addHome(context: Context): AddHomeResult? = run {
-        val req = authRequest(context, "/homes", "POST")
+    data class AddHomeResult(val alarmSystemId: Int, val deviceId: String, val microcontrollerId: Int)
+    /**
+     * Create a home. If [microcontrollerId] is non-null, the DB uses that id (matches firmware `DEVICE_ID` = esp32_<n>).
+     * If null, the backend picks the next free id.
+     */
+    fun addHome(context: Context, microcontrollerId: Int? = null): AddHomeResult? = run {
+        val body = JSONObject().apply {
+            if (microcontrollerId != null) put("microcontroller_id", microcontrollerId)
+        }.toString()
+        val req = authRequest(context, "/homes", "POST", body)
         try {
             client.newCall(req).execute().use { response ->
                 if (!response.isSuccessful) return null
                 val o = JSONObject(response.body?.string() ?: "{}")
                 AddHomeResult(
                     alarmSystemId = o.optInt("alarm_system_id", 0),
-                    deviceId = o.optString("device_id", "")
+                    deviceId = o.optString("device_id", ""),
+                    microcontrollerId = o.optInt("microcontroller_id", 0)
                 )
             }
         } catch (_: Exception) {

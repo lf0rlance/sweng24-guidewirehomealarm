@@ -3,10 +3,11 @@ Admin-only API: list/add homes, sensor labels, add users to home, offline device
 No home address is ever stored or returned.
 """
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 from app.dependencies import get_current_admin
 from app.models.request_models import (
+    AddHomeRequest,
     SetSensorLabelsRequest,
     AddUserToHomeRequest,
     LinkExistingUserToHomeRequest,
@@ -35,9 +36,19 @@ def list_homes(_: Annotated[dict, Depends(get_current_admin)]):
 
 
 @router.post("/homes")
-def add_home(_: Annotated[dict, Depends(get_current_admin)]):
-    """Create a new home (alarm_system + one microcontroller). Returns alarm_system_id, device_id (e.g. esp32_7)."""
-    result = admin_queries.add_home()
+def add_home(
+    _: Annotated[dict, Depends(get_current_admin)],
+    body: AddHomeRequest = Body(default_factory=AddHomeRequest),
+):
+    """
+    Create a new home (alarm_system + one microcontroller).
+    Pass microcontroller_id to match an ESP already flashed with DEVICE_ID=esp32_<n> (same numeric n).
+    Omit it to allocate the next free id.
+    """
+    try:
+        result = admin_queries.add_home(body.microcontroller_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     if result is None:
         raise HTTPException(status_code=500, detail="Failed to create home")
     return result

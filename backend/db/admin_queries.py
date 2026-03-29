@@ -137,18 +137,24 @@ def delete_home(alarm_system_id: int) -> tuple:
             pass
 
 
-def add_home() -> Optional[dict]:
-    """Create one home (alarm_system + microcontroller). Returns dict with alarm_system_id, device_id, etc."""
+def add_home(microcontroller_id: Optional[int] = None) -> Optional[dict]:
+    """
+    Create one home (alarm_system + microcontroller). Returns dict with alarm_system_id, device_id, etc.
+    Raises ValueError if microcontroller_id is invalid or already used.
+    """
     conn = connectToDB.connectToDB()
     try:
         cur = conn.cursor()
-        aid, mc_id, device_id = create_home_with_device(cur)
+        aid, mc_id, device_id = create_home_with_device(cur, microcontroller_id=microcontroller_id)
         conn.commit()
         return {
             "alarm_system_id": aid,
             "microcontroller_id": mc_id,
             "device_id": device_id,
         }
+    except ValueError:
+        conn.rollback()
+        raise
     except Exception as e:
         conn.rollback()
         print(f"add_home failed: {e}")
