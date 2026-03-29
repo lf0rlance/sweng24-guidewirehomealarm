@@ -121,6 +121,62 @@ def update_user_by_admin(
             pass
 
 
+def link_existing_user_to_home(
+    email: str,
+    alarm_system_id: int,
+    password: Optional[str] = None,
+) -> str:
+    """
+    Attach an existing account (e.g. Google signup) to this home.
+    Returns '' on success, or 'not_found', 'already_other_home', or 'update_failed'.
+    Optional password sets/resets hash so the user can also use email/password login.
+    """
+    conn = connectToDB.connectToDB()
+    email_norm = email.strip().lower()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, alarm_system_id FROM user_table WHERE lower(trim(email)) = %s",
+            (email_norm,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return "not_found"
+        uid, current_home = row[0], row[1]
+        if current_home is not None and int(current_home) != int(alarm_system_id):
+            return "already_other_home"
+
+        updates = []
+        args: list = []
+        if current_home is None:
+            updates.append("alarm_system_id = %s")
+            args.append(alarm_system_id)
+        pwd = (password or "").strip()
+        if pwd:
+            updates.append("password_hash = %s")
+            args.append(bcrypt.hashpw(pwd.encode(), bcrypt.gensalt()).decode())
+        if not updates:
+            return ""
+        args.append(uid)
+        cur.execute(
+            f"UPDATE user_table SET {', '.join(updates)} WHERE id = %s",
+            args,
+        )
+        conn.commit()
+        if cur.rowcount > 0:
+            return ""
+        return "update_failed"
+    except Exception as e:
+        conn.rollback()
+        print(f"link_existing_user_to_home: {e}")
+        return "update_failed"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def unlink_user_from_home(user_id: int, alarm_system_id: int) -> bool:
     """Remove user from this home (set alarm_system_id to NULL). Admin only."""
     conn = connectToDB.connectToDB()

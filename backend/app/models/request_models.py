@@ -58,6 +58,16 @@ class AddUserToHomeRequest(BaseModel):
     phone: str | None = None
 
 
+class LinkExistingUserToHomeRequest(BaseModel):
+    """Link an account that already exists (e.g. signed up with Google) to this home."""
+
+    email: str
+    password: str | None = Field(
+        default=None,
+        description="Optional. If set (min 8 chars), user can log in with email/password too.",
+    )
+
+
 class NotifyHomeownerRequest(BaseModel):
     title: str
     body: str

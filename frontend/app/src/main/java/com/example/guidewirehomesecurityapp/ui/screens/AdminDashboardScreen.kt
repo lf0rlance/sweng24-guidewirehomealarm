@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -201,8 +203,28 @@ fun AdminDashboardScreen(
             title = { Text("New home added") },
             text = {
                 Column {
-                    Text("Device ID for customer / ESP32: ${result.deviceId}")
-                    Text("Alarm system ID: ${result.alarmSystemId}", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "Use this device ID on the ESP32 firmware (DEVICE_ID / microcontroller id) so events go to this home.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Device ID: ${result.deviceId}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "Alarm system #${result.alarmSystemId}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Next: open this home → Users → Link existing account (e.g. their Google email) or Create new account. " +
+                            "The list shows “Last seen” when the ESP is online and sending events.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             confirmButton = { TextButton(onClick = { addHomeResult = null }) { Text("OK") } }
@@ -308,6 +330,30 @@ fun AdminDashboardScreen(
     }
 }
 
+/** One-line hint: whether the ESP32 for this home has been seen and matches firmware DEVICE_ID. */
+private fun espConnectionHint(home: AdminHome): String {
+    val id = home.deviceId.ifBlank {
+        if (home.microcontrollerId > 0) "esp32_${home.microcontrollerId}" else "—"
+    }
+    val last = home.lastSeen
+    if (last == null || last <= 0.0) {
+        return "ESP: set DEVICE_ID to $id in firmware (and backend URL/secret) — not seen yet."
+    }
+    val nowSec = System.currentTimeMillis() / 1000.0
+    val sec = (nowSec - last).toLong().coerceAtLeast(0)
+    val ago = when {
+        sec < 90 -> "${sec}s ago"
+        sec < 3600 -> "${sec / 60}m ago"
+        sec < 86400 -> "${sec / 3600}h ago"
+        else -> "${sec / 86400}d ago"
+    }
+    return if (home.offline) {
+        "ESP $id · Offline (last activity $ago)"
+    } else {
+        "ESP $id · Online (last seen $ago)"
+    }
+}
+
 @Composable
 private fun AdminHomeCard(
     home: AdminHome,
@@ -341,6 +387,11 @@ private fun AdminHomeCard(
                         text = "${home.deviceId} · Users: ${home.userCount} · Sensors: ${home.sensorLabels.size}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = espConnectionHint(home),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -461,6 +512,7 @@ private fun UsersDialog(
     var users by remember(home.alarmSystemId) { mutableStateOf<List<AdminService.HomeUser>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var showAddForm by remember { mutableStateOf(false) }
+    var showLinkForm by remember { mutableStateOf(false) }
     var editUser by remember { mutableStateOf<AdminService.HomeUser?>(null) }
     var removeConfirmUser by remember { mutableStateOf<AdminService.HomeUser?>(null) }
     val context = LocalContext.current
@@ -475,9 +527,15 @@ private fun UsersDialog(
         onDismissRequest = onDismiss,
         title = { Text("Users — ${home.name.ifBlank { home.deviceId }}") },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 if (loading) CircularProgressIndicator()
                 else {
+                    Text(
+                        "Link someone who already has an account (e.g. signed in with Google). Create new is for a fresh email/password user.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
                     users.forEach { u ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -495,8 +553,32 @@ private fun UsersDialog(
                             }
                         }
                     }
-                    if (showAddForm) {
-                        AddUserForm(
+                    when {
+                        showLinkForm -> LinkExistingUserForm(
+                            onLink = { email, password ->
+                                scope.launch {
+                                    val ok = withContext(Dispatchers.IO) {
+                                        AdminService.linkExistingUser(context, home.alarmSystemId, email, password)
+                                    }
+                                    if (ok) {
+                                        onUserAdded()
+                                        showLinkForm = false
+                                        users = withContext(Dispatchers.IO) {
+                                            AdminService.listUsers(context, home.alarmSystemId)
+                                        }
+                                        Toast.makeText(context, "Linked to this home", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "Failed — email must exist (user signed up once), not already on another home; password 8+ chars if set",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            },
+                            onCancel = { showLinkForm = false }
+                        )
+                        showAddForm -> AddUserForm(
                             onAdd = { username, email, password, phone ->
                                 scope.launch {
                                     val ok = withContext(Dispatchers.IO) {
@@ -514,8 +596,16 @@ private fun UsersDialog(
                             },
                             onCancel = { showAddForm = false }
                         )
-                    } else {
-                        TextButton(onClick = { showAddForm = true }) { Text("Add user") }
+                        else -> {
+                            TextButton(onClick = {
+                                showLinkForm = true
+                                showAddForm = false
+                            }) { Text("Link existing account") }
+                            TextButton(onClick = {
+                                showAddForm = true
+                                showLinkForm = false
+                            }) { Text("Create new user") }
+                        }
                     }
                 }
             }
@@ -581,6 +671,51 @@ private fun UsersDialog(
             },
             dismissButton = { TextButton(onClick = { removeConfirmUser = null }) { Text("Cancel") } }
         )
+    }
+}
+
+@Composable
+private fun LinkExistingUserForm(
+    onLink: (email: String, password: String?) -> Unit,
+    onCancel: () -> Unit
+) {
+    val context = LocalContext.current
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    Column {
+        Text(
+            "They must already exist in the app (e.g. “Create account” with Google). Optional password enables email login too.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Email") }
+        )
+        Spacer(Modifier.height(4.dp))
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Password (optional, 8+ chars)") }
+        )
+        Row {
+            TextButton(onClick = {
+                if (email.isBlank()) return@TextButton
+                val p = password.takeIf { it.isNotBlank() }
+                if (p != null && p.length < 8) {
+                    Toast.makeText(context, "Password must be at least 8 characters", Toast.LENGTH_SHORT).show()
+                    return@TextButton
+                }
+                onLink(email.trim(), p)
+            }) { Text("Link to this home") }
+            TextButton(onClick = onCancel) { Text("Cancel") }
+        }
     }
 }
 

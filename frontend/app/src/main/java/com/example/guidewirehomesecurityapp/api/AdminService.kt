@@ -163,6 +163,28 @@ object AdminService {
         }
     }
 
+    /**
+     * Link an existing account (e.g. Google signup) to this home. Optional [password] enables email login too.
+     */
+    fun linkExistingUser(
+        context: Context,
+        alarmSystemId: Int,
+        email: String,
+        password: String?
+    ): Boolean = run {
+        val body = JSONObject().apply {
+            put("email", email.trim().lowercase())
+            val p = password?.trim()
+            if (!p.isNullOrEmpty()) put("password", p)
+        }.toString()
+        val req = authRequest(context, "/homes/$alarmSystemId/users/link", "POST", body)
+        try {
+            client.newCall(req).execute().use { it.isSuccessful }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     fun addUser(context: Context, alarmSystemId: Int, username: String, email: String, password: String, phone: String?): Boolean = run {
         val body = JSONObject().apply {
             put("username", username)

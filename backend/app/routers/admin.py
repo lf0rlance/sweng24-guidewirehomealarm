@@ -9,6 +9,7 @@ from app.dependencies import get_current_admin
 from app.models.request_models import (
     SetSensorLabelsRequest,
     AddUserToHomeRequest,
+    LinkExistingUserToHomeRequest,
     NotifyHomeownerRequest,
     UpdateAlarmSystemRequest,
     UpdateUserRequest,
@@ -17,7 +18,12 @@ from app.services.notification_service import send_notification_to_system
 from db import admin_queries
 from db.device_last_seen import get_offline_devices
 from db.sensor_labels import set_sensor_labels, get_sensor_labels
-from db.insertIntoDB import insert_user_by_admin, update_user_by_admin, unlink_user_from_home
+from db.insertIntoDB import (
+    insert_user_by_admin,
+    update_user_by_admin,
+    unlink_user_from_home,
+    link_existing_user_to_home,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -107,6 +113,36 @@ def add_user_to_home(
     ):
         raise HTTPException(status_code=400, detail="User already exists or invalid data")
     return {"status": "ok", "message": "User created"}
+
+
+@router.post("/homes/{alarm_system_id}/users/link")
+def link_existing_user_to_home_endpoint(
+    alarm_system_id: int,
+    body: LinkExistingUserToHomeRequest,
+    _: Annotated[dict, Depends(get_current_admin)],
+):
+    """
+    Link an existing account (same email already in user_table, e.g. Google sign-in) to this home.
+    Optionally set a password so they can use email/password login as well.
+    """
+    pwd = (body.password or "").strip()
+    if pwd and len(pwd) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters if provided")
+    err = link_existing_user_to_home(
+        email=body.email.strip(),
+        alarm_system_id=alarm_system_id,
+        password=pwd if pwd else None,
+    )
+    if err == "not_found":
+        raise HTTPException(status_code=404, detail="No user with that email — they must sign up or log in once first")
+    if err == "already_other_home":
+        raise HTTPException(
+            status_code=409,
+            detail="That user is already assigned to a different home — remove them there first",
+        )
+    if err:
+        raise HTTPException(status_code=500, detail="Could not link user")
+    return {"status": "ok", "message": "User linked to this home"}
 
 
 @router.put("/homes/{alarm_system_id}/users/{user_id}")
