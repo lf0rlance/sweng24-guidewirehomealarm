@@ -60,6 +60,45 @@ def get_fcm_tokens(alarm_system_id: int) -> List[str]:
             pass
 
 
+def get_fcm_tokens_excluding_trusted(alarm_system_id: int) -> List[str]:
+    """
+    Tokens for sensor/door push notifications. Excludes devices registered to users
+    with home_role = trusted (they should not receive sensor-triggered pushes).
+    Tokens without user_id (legacy) are still included.
+    """
+    conn = connectToDB.connectToDB()
+    if conn is None:
+        return []
+    try:
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT f.token
+                FROM fcm_tokens f
+                LEFT JOIN user_table u ON u.id = f.user_id
+                WHERE f.alarm_system_id = %s
+                  AND (
+                    f.user_id IS NULL
+                    OR COALESCE(u.home_role, 'owner') <> 'trusted'
+                  )
+                """,
+                (alarm_system_id,),
+            )
+        except Exception:
+            conn.rollback()
+            return get_fcm_tokens(alarm_system_id)
+        return [row[0] for row in cur.fetchall()]
+    except Exception as e:
+        print(f"get_fcm_tokens_excluding_trusted: {e}")
+        return get_fcm_tokens(alarm_system_id)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def get_fcm_tokens_for_users(alarm_system_id: int, user_ids: List[int]) -> List[str]:
     """Tokens for specific users in this home (for targeted guardian/owner notifications)."""
     if not user_ids:

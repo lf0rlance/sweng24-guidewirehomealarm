@@ -116,7 +116,12 @@ def send_push_for_event(event_dict: Dict[str, Any], alarm_system_id: Optional[in
         print(f"Push skipped: event {event_type} from {event_dict.get('device_id')} has no alarm_system_id (link ESP32 in app Settings)")
         return
 
-    tokens = _get_tokens_for_system(alarm_system_id)
+    try:
+        from db.fcm_tokens import get_fcm_tokens_excluding_trusted
+
+        tokens = get_fcm_tokens_excluding_trusted(alarm_system_id)
+    except Exception:
+        tokens = _get_tokens_for_system(alarm_system_id)
     if not tokens:
         print(f"Push skipped: no FCM tokens for alarm_system_id={alarm_system_id} (open app while logged in to register)")
         return
@@ -141,7 +146,7 @@ def send_push_for_event(event_dict: Dict[str, Any], alarm_system_id: Optional[in
             tokens=tokens,
         )
         batch = messaging.send_each_for_multicast(message)
-        print(f"Push sent: {event_type} to {batch.success_count}/{len(tokens)} devices (failures: {batch.failure_count})")
+        print(f"Push sent: {event_type} to {batch.success_count}/{len(tokens)} devices (excludes trusted; failures: {batch.failure_count})")
         if batch.failure_count > 0:
             for i, err in enumerate(batch.responses):
                 if not err.success:

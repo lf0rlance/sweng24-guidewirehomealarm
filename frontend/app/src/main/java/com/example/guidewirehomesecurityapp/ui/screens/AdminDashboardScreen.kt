@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -35,8 +36,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,9 +58,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.example.guidewirehomesecurityapp.api.AdminHome
 import com.example.guidewirehomesecurityapp.api.AdminService
 import com.example.guidewirehomesecurityapp.auth.BackendAuthService
+import com.example.guidewirehomesecurityapp.ui.components.HomeRoleChipSelector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -587,43 +591,94 @@ private fun UsersDialog(
         loading = false
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Users — ${home.name.ifBlank { home.deviceId }}") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                if (loading) CircularProgressIndicator()
-                else {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            shadowElevation = 6.dp,
+        ) {
+            Column(
+                Modifier
+                    .widthIn(min = 320.dp, max = 520.dp)
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    "Users",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    home.name.ifBlank { home.deviceId },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(16.dp))
+                if (loading) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                } else {
                     Text(
                         "Link someone who already has an account (e.g. signed in with Google). Create new is for a fresh email/password user.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        modifier = Modifier.padding(bottom = 12.dp)
                     )
                     users.forEach { u ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(16.dp),
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("${u.username} (${u.email})", style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    "Role: ${u.homeRole}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Row {
-                                IconButton(onClick = { editUser = u }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit")
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        u.username,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        u.email,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "Role: ${u.homeRole}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
                                 }
-                                IconButton(onClick = { removeConfirmUser = u }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Remove")
+                                Row {
+                                    IconButton(onClick = { editUser = u }) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Edit")
+                                    }
+                                    IconButton(onClick = { removeConfirmUser = u }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Remove")
+                                    }
                                 }
                             }
                         }
                     }
+                    HorizontalDivider(Modifier.padding(vertical = 12.dp))
                     when {
                         showLinkForm -> LinkExistingUserForm(
                             onLink = { email, password, homeRole ->
@@ -668,21 +723,35 @@ private fun UsersDialog(
                             onCancel = { showAddForm = false }
                         )
                         else -> {
-                            TextButton(onClick = {
-                                showLinkForm = true
-                                showAddForm = false
-                            }) { Text("Link existing account") }
-                            TextButton(onClick = {
-                                showAddForm = true
-                                showLinkForm = false
-                            }) { Text("Create new user") }
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                TextButton(
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        showLinkForm = true
+                                        showAddForm = false
+                                    }
+                                ) { Text("Link existing") }
+                                TextButton(
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        showAddForm = true
+                                        showLinkForm = false
+                                    }
+                                ) { Text("Create new") }
+                            }
                         }
                     }
                 }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text("Close") }
+                }
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
-    )
+        }
+    }
 
     editUser?.let { u ->
         var username by remember(u.id) { mutableStateOf(u.username) }
@@ -690,49 +759,101 @@ private fun UsersDialog(
         var phone by remember(u.id) { mutableStateOf(u.phone) }
         var password by remember(u.id) { mutableStateOf("") }
         var homeRoleEdit by remember(u.id) { mutableStateOf(u.homeRole) }
-        AlertDialog(
-            onDismissRequest = { editUser = null },
-            title = { Text("Edit user") },
-            text = {
-                Column {
-                    OutlinedTextField(value = username, onValueChange = { username = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Username") })
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(value = email, onValueChange = { email = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Email") })
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(value = phone, onValueChange = { phone = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Phone") })
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("New password (optional)") })
+        Dialog(onDismissRequest = { editUser = null }) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp,
+                shadowElevation = 6.dp,
+            ) {
+                Column(
+                    Modifier
+                        .widthIn(min = 300.dp, max = 440.dp)
+                        .padding(24.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        "Edit user",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        u.email,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+                    )
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = { username = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Username") }
+                    )
                     Spacer(Modifier.height(8.dp))
-                    Text("Home role", style = MaterialTheme.typography.labelMedium)
-                    Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                        listOf("owner", "spouse", "child", "trusted").forEach { r ->
-                            FilterChip(
-                                selected = homeRoleEdit == r,
-                                onClick = { homeRoleEdit = r },
-                                label = { Text(r) }
-                            )
-                        }
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Email") }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = phone,
+                        onValueChange = { phone = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Phone") }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("New password (optional)") }
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text("Home role", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(8.dp))
+                    HomeRoleChipSelector(
+                        selectedRole = homeRoleEdit,
+                        onRoleSelected = { homeRoleEdit = it }
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { editUser = null }) { Text("Cancel") }
+                        TextButton(onClick = {
+                            scope.launch {
+                                val ok = withContext(Dispatchers.IO) {
+                                    AdminService.updateUser(
+                                        context,
+                                        home.alarmSystemId,
+                                        u.id,
+                                        username,
+                                        email,
+                                        phone,
+                                        password.takeIf { it.isNotBlank() },
+                                        homeRoleEdit
+                                    )
+                                }
+                                editUser = null
+                                if (ok) {
+                                    users = withContext(Dispatchers.IO) { AdminService.listUsers(context, home.alarmSystemId) }
+                                    onUserAdded()
+                                    Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }) { Text("Save") }
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        val ok = withContext(Dispatchers.IO) {
-                            AdminService.updateUser(context, home.alarmSystemId, u.id, username, email, phone, password.takeIf { it.isNotBlank() }, homeRoleEdit)
-                        }
-                        editUser = null
-                        if (ok) {
-                            users = withContext(Dispatchers.IO) { AdminService.listUsers(context, home.alarmSystemId) }
-                            onUserAdded()
-                            Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }) { Text("Save") }
-            },
-            dismissButton = { TextButton(onClick = { editUser = null }) { Text("Cancel") } }
-        )
+            }
+        }
     }
 
     removeConfirmUser?.let { u ->
@@ -790,14 +911,10 @@ private fun LinkExistingUserForm(
             label = { Text("Password (optional, 8+ chars)") }
         )
         Spacer(Modifier.height(8.dp))
-        Text("Home role", style = MaterialTheme.typography.labelMedium)
-        Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-            listOf("owner", "spouse", "child", "trusted").forEach { r ->
-                FilterChip(selected = homeRole == r, onClick = { homeRole = r }, label = { Text(r) })
-            }
-        }
-        Row {
+        Text("Home role", style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(8.dp))
+        HomeRoleChipSelector(selectedRole = homeRole, onRoleSelected = { homeRole = it })
+        Row(Modifier.padding(top = 12.dp)) {
             TextButton(onClick = {
                 if (email.isBlank()) return@TextButton
                 val p = password.takeIf { it.isNotBlank() }
@@ -861,14 +978,10 @@ private fun AddUserForm(
             label = { Text("Phone (optional)") }
         )
         Spacer(Modifier.height(8.dp))
-        Text("Home role", style = MaterialTheme.typography.labelMedium)
-        Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-            listOf("owner", "spouse", "child", "trusted").forEach { r ->
-                FilterChip(selected = homeRole == r, onClick = { homeRole = r }, label = { Text(r) })
-            }
-        }
-        Row {
+        Text("Home role", style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(8.dp))
+        HomeRoleChipSelector(selectedRole = homeRole, onRoleSelected = { homeRole = it })
+        Row(Modifier.padding(top = 12.dp)) {
             TextButton(onClick = { onAdd(username, email, password, phone.takeIf { it.isNotBlank() }, homeRole) }) { Text("Create") }
             TextButton(onClick = onCancel) { Text("Cancel") }
         }
