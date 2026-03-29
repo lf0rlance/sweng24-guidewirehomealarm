@@ -22,19 +22,25 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.rememberDatePickerState
+import com.example.guidewirehomesecurityapp.api.EventService
 import com.example.guidewirehomesecurityapp.api.SensorEvent
 import com.example.guidewirehomesecurityapp.ui.components.ScreenTitleWithLogo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -44,6 +50,16 @@ fun SensorHistoryScreen(
     modifier: Modifier = Modifier,
     events: List<SensorEvent> = emptyList()
 ) {
+    val context = LocalContext.current
+    var sensorLabels by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        sensorLabels = withContext(Dispatchers.IO) { EventService.getSensorLabels(context) }
+        while (isActive) {
+            delay(5000)
+            sensorLabels = withContext(Dispatchers.IO) { EventService.getSensorLabels(context) }
+        }
+    }
+
     val dateFormatter = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
     val todayString = remember { dateFormatter.format(Date()) }
 
@@ -245,7 +261,7 @@ fun SensorHistoryScreen(
                     }
                 }
                 items(filteredEvents) { event ->
-                    SensorHistoryEventCard(event = event)
+                    SensorHistoryEventCard(event = event, sensorLabels = sensorLabels)
                 }
             }
         }
@@ -271,7 +287,7 @@ private fun HistoryTypeChip(
 }
 
 @Composable
-private fun SensorHistoryEventCard(event: SensorEvent) {
+private fun SensorHistoryEventCard(event: SensorEvent, sensorLabels: List<String>) {
     val timeStr = try {
         val date = Date((event.timestamp * 1000).toLong())
         SimpleDateFormat("MMM d, HH:mm:ss", Locale.getDefault()).format(date)
@@ -281,14 +297,14 @@ private fun SensorHistoryEventCard(event: SensorEvent) {
     val openedOrClosed = when (event.event_type) {
         "door_open", "door_open_2" -> "Opened"
         "door_closed", "door_closed_2" -> "Closed"
-        else -> event.displayType()
+        else -> event.displayType(sensorLabels)
     }
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
-            text = event.displayType(),
+            text = event.displayType(sensorLabels),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary,

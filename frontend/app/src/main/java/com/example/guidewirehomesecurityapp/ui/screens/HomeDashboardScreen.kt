@@ -22,17 +22,30 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.guidewirehomesecurityapp.api.AlarmService
+import com.example.guidewirehomesecurityapp.api.EventService
 import com.example.guidewirehomesecurityapp.api.SensorEvent
+import com.example.guidewirehomesecurityapp.api.deriveDoorOpenStates
 import com.example.guidewirehomesecurityapp.ui.components.ScreenTitleWithLogo
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 
-private const val CARD_HEIGHT_DP = 172
+private const val CARD_HEIGHT_DP = 200
 
 @Composable
 fun HomeDashboardScreen(
@@ -43,8 +56,54 @@ fun HomeDashboardScreen(
     onNavigateToSustainability: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
-    val reversed = recentEvents.reversed()
-    val previewEvents = reversed.take(2)
+    val context = LocalContext.current
+    var systemArmed by remember { mutableStateOf<Boolean?>(null) }
+    var sensorLabels by remember { mutableStateOf<List<String>>(emptyList()) }
+    var powerSamples by remember { mutableStateOf<List<EventService.PowerSample>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            val armed = withContext(Dispatchers.IO) { AlarmService.getArmedStatus(context) }
+            val labels = withContext(Dispatchers.IO) { EventService.getSensorLabels(context) }
+            val power = withContext(Dispatchers.IO) { EventService.getPowerRecent(context) }
+            systemArmed = armed
+            sensorLabels = labels
+            powerSamples = power
+            delay(3000)
+        }
+    }
+
+    val previewEvents = remember(recentEvents) {
+        recentEvents
+            .asSequence()
+            .filter { it.event_type != "current_power_usage" }
+            .sortedByDescending { it.timestamp }
+            .take(2)
+            .toList()
+    }
+
+    val (open1, open2) = remember(recentEvents) { deriveDoorOpenStates(recentEvents) }
+    val name1 = sensorLabels.getOrNull(0)?.takeIf { it.isNotBlank() } ?: "Sensor 1"
+    val name2 = sensorLabels.getOrNull(1)?.takeIf { it.isNotBlank() } ?: "Sensor 2"
+
+    fun sensorLine(which: Int, open: Boolean?): String {
+        val label = if (which == 1) name1 else name2
+        val state = when (open) {
+            null -> "Unknown"
+            true -> "Open"
+            false -> "Closed"
+        }
+        return "$label: $state"
+    }
+
+    val alarmLine = when (systemArmed) {
+        null -> "Alarm: …"
+        true -> "Alarm: Armed"
+        false -> "Alarm: Disarmed"
+    }
+
+    val latestPower = powerSamples.maxByOrNull { it.timestamp }
+    val peakMa = powerSamples.maxOfOrNull { it.valueMa }
 
     val cards = listOf(
         DashboardPreviewItem(
@@ -52,8 +111,27 @@ fun HomeDashboardScreen(
             icon = Icons.Filled.Lock,
             onClick = onNavigateToControl,
             previewContent = {
-                Text("Alarm: Disarmed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("Front door: Closed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    alarmLine,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    sensorLine(1, open1),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    sensorLine(2, open2),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         ),
         DashboardPreviewItem(
@@ -62,13 +140,27 @@ fun HomeDashboardScreen(
             onClick = onNavigateToHistory,
             previewContent = {
                 if (previewEvents.isEmpty()) {
-                    Text("No recent events", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        "No recent events",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 } else {
                     previewEvents.forEach { event ->
                         val timeStr = try {
                             SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date((event.timestamp * 1000).toLong()))
-                        } catch (_: Exception) { "—" }
-                        Text("${event.displayType()} · $timeStr", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        } catch (_: Exception) {
+                            "—"
+                        }
+                        Text(
+                            "${event.displayType(sensorLabels)} · $timeStr",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
@@ -78,8 +170,39 @@ fun HomeDashboardScreen(
             icon = Icons.Filled.Eco,
             onClick = onNavigateToSustainability,
             previewContent = {
-                Text("~2.4 kWh saved", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("~1.2 kg CO₂e reduced", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (latestPower != null) {
+                    Text(
+                        "%.0f mA · %s".format(latestPower.valueMa, latestPower.deviceId),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    val peakText = peakMa?.let { p -> "Peak (sample): %.0f mA".format(p) }
+                        ?: "Live draw from your nodes"
+                    Text(
+                        peakText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                } else {
+                    Text(
+                        "No power data yet",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "Open Eco for the live chart",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         ),
         DashboardPreviewItem(
@@ -87,8 +210,20 @@ fun HomeDashboardScreen(
             icon = Icons.Filled.People,
             onClick = onNavigateToSettings,
             previewContent = {
-                Text("Add or view users", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("Permissions & roles", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "Account & app settings",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "Sign out and preferences",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         )
     )

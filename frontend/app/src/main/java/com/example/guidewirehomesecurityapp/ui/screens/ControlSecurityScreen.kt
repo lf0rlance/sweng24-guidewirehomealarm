@@ -30,26 +30,13 @@ import androidx.compose.ui.unit.dp
 import com.example.guidewirehomesecurityapp.api.AlarmService
 import com.example.guidewirehomesecurityapp.api.EventService
 import com.example.guidewirehomesecurityapp.api.SensorEvent
+import com.example.guidewirehomesecurityapp.api.deriveDoorOpenStates
 import com.example.guidewirehomesecurityapp.ui.components.ScreenTitleWithLogo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-/** Latest open/closed state for reed 1 and reed 2 from events (newest timestamp wins). */
-private fun deriveOpenStates(events: List<SensorEvent>): Pair<Boolean?, Boolean?> {
-    var s1: Boolean? = null
-    var s2: Boolean? = null
-    for (e in events.sortedByDescending { it.timestamp }) {
-        when (e.event_type) {
-            "door_open" -> if (s1 == null) s1 = true
-            "door_closed" -> if (s1 == null) s1 = false
-            "door_open_2" -> if (s2 == null) s2 = true
-            "door_closed_2" -> if (s2 == null) s2 = false
-        }
-        if (s1 != null && s2 != null) break
-    }
-    return Pair(s1, s2)
-}
 
 @Composable
 fun ControlSecurityScreen(
@@ -68,9 +55,13 @@ fun ControlSecurityScreen(
         if (armed != null) systemArmed = armed
         labels = withContext(Dispatchers.IO) { EventService.getSensorLabels(context) }
         loading = false
+        while (isActive) {
+            delay(5000)
+            labels = withContext(Dispatchers.IO) { EventService.getSensorLabels(context) }
+        }
     }
 
-    val (open1, open2) = remember(events) { deriveOpenStates(events) }
+    val (open1, open2) = remember(events) { deriveDoorOpenStates(events) }
     val name1 = labels.getOrNull(0)?.takeIf { it.isNotBlank() } ?: "Sensor 1"
     val name2 = labels.getOrNull(1)?.takeIf { it.isNotBlank() } ?: "Sensor 2"
 
