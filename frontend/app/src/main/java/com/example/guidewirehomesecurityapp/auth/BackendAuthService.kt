@@ -14,18 +14,26 @@ private const val PREFS_NAME = "auth_prefs"
 private const val KEY_JWT = "jwt"
 private const val KEY_ROLE = "role"
 private const val KEY_USERNAME = "username"
+private const val KEY_HOME_ROLE = "home_role"
 
 object BackendAuthService {
 
     private fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /** Persist JWT, role, and optional username after successful sign-in/sign-up. */
-    fun saveToken(context: Context, token: String, role: String? = null, username: String? = null) {
+    /** Persist JWT, role, optional username, and per-home role (owner/spouse/child/trusted). */
+    fun saveToken(
+        context: Context,
+        token: String,
+        role: String? = null,
+        username: String? = null,
+        homeRole: String? = null
+    ) {
         prefs(context).edit()
             .putString(KEY_JWT, token)
             .putString(KEY_ROLE, role ?: "user")
             .putString(KEY_USERNAME, username ?: "")
+            .putString(KEY_HOME_ROLE, homeRole ?: "")
             .apply()
     }
 
@@ -41,10 +49,22 @@ object BackendAuthService {
     fun getUsername(context: Context): String? =
         prefs(context).getString(KEY_USERNAME, null)?.takeIf { it.isNotBlank() }
 
+    /** Per-home role: owner, spouse, child, trusted — empty if not set. */
+    fun getHomeRole(context: Context): String? =
+        prefs(context).getString(KEY_HOME_ROLE, null)?.takeIf { it.isNotBlank() }
+
     /** Clear stored JWT, role, and username (e.g. on logout). */
     fun clearToken(context: Context) {
-        prefs(context).edit().remove(KEY_JWT).remove(KEY_ROLE).remove(KEY_USERNAME).apply()
+        prefs(context).edit()
+            .remove(KEY_JWT)
+            .remove(KEY_ROLE)
+            .remove(KEY_USERNAME)
+            .remove(KEY_HOME_ROLE)
+            .apply()
     }
+
+    private fun homeRoleFromUserJson(user: JSONObject?): String? =
+        user?.optString("home_role", "")?.takeIf { it.isNotBlank() }
 
     private fun request(
         context: Context,
@@ -80,8 +100,9 @@ object BackendAuthService {
                             val user = obj.optJSONObject("user")
                             val role = user?.optString("role", "user")?.takeIf { it.isNotBlank() } ?: "user"
                             val username = user?.optString("name", "")?.takeIf { it.isNotBlank() }
+                            val homeRole = homeRoleFromUserJson(user)
                             if (jwt != null) {
-                                saveToken(context, jwt, role, username)
+                                saveToken(context, jwt, role, username, homeRole)
                             }
                         } catch (_: Exception) { /* ignore parse failure */ }
                     }
@@ -152,7 +173,8 @@ object BackendAuthService {
                         val user = obj.optJSONObject("user")
                         val role = user?.optString("role", "user")?.takeIf { it.isNotBlank() } ?: "user"
                         val username = user?.optString("name", "")?.takeIf { it.isNotBlank() }
-                        saveToken(context, jwt, role, username)
+                        val homeRole = homeRoleFromUserJson(user)
+                        saveToken(context, jwt, role, username, homeRole)
                         android.os.Handler(android.os.Looper.getMainLooper()).post { onSuccess() }
                     } else if (obj.optBoolean("mfa_required", false)) {
                         val email = obj.optString("email", "")
@@ -213,7 +235,8 @@ object BackendAuthService {
                             val user = obj.optJSONObject("user")
                             val role = user?.optString("role", "user")?.takeIf { r -> r.isNotBlank() } ?: "user"
                             val username = user?.optString("name", "")?.takeIf { n -> n.isNotBlank() }
-                            saveToken(context, jwt, role, username)
+                            val homeRole = homeRoleFromUserJson(user)
+                            saveToken(context, jwt, role, username, homeRole)
                         }
                     }
                     android.os.Handler(android.os.Looper.getMainLooper()).post { onSuccess() }
@@ -268,8 +291,9 @@ object BackendAuthService {
                             val user = obj.optJSONObject("user")
                             val role = user?.optString("role", "user")?.takeIf { it.isNotBlank() } ?: "user"
                             val username = user?.optString("name", "")?.takeIf { it.isNotBlank() }
+                            val homeRole = homeRoleFromUserJson(user)
                             if (jwt != null) {
-                                saveToken(context, jwt, role, username)
+                                saveToken(context, jwt, role, username, homeRole)
                             }
                         } catch (_: Exception) { }
                     }

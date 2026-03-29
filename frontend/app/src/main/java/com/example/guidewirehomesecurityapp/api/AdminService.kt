@@ -148,7 +148,14 @@ object AdminService {
         }
     }
 
-    data class HomeUser(val id: Int, val username: String, val email: String, val phone: String, val role: String)
+    data class HomeUser(
+        val id: Int,
+        val username: String,
+        val email: String,
+        val phone: String,
+        val role: String,
+        val homeRole: String,
+    )
     fun listUsers(context: Context, alarmSystemId: Int): List<HomeUser> = run {
         val req = authRequest(context, "/homes/$alarmSystemId/users")
         try {
@@ -162,7 +169,8 @@ object AdminService {
                         username = o.optString("username", ""),
                         email = o.optString("email", ""),
                         phone = o.optString("phone", ""),
-                        role = o.optString("role", "user")
+                        role = o.optString("role", "user"),
+                        homeRole = o.optString("home_role", "owner"),
                     )
                 }
             }
@@ -178,12 +186,14 @@ object AdminService {
         context: Context,
         alarmSystemId: Int,
         email: String,
-        password: String?
+        password: String?,
+        homeRole: String? = null,
     ): Boolean = run {
         val body = JSONObject().apply {
             put("email", email.trim().lowercase())
             val p = password?.trim()
             if (!p.isNullOrEmpty()) put("password", p)
+            if (!homeRole.isNullOrBlank()) put("home_role", homeRole.lowercase())
         }.toString()
         val req = authRequest(context, "/homes/$alarmSystemId/users/link", "POST", body)
         try {
@@ -193,12 +203,21 @@ object AdminService {
         }
     }
 
-    fun addUser(context: Context, alarmSystemId: Int, username: String, email: String, password: String, phone: String?): Boolean = run {
+    fun addUser(
+        context: Context,
+        alarmSystemId: Int,
+        username: String,
+        email: String,
+        password: String,
+        phone: String?,
+        homeRole: String? = null,
+    ): Boolean = run {
         val body = JSONObject().apply {
             put("username", username)
             put("email", email)
             put("password", password)
             put("phone", phone ?: "")
+            if (!homeRole.isNullOrBlank()) put("home_role", homeRole.lowercase())
         }.toString()
         val req = authRequest(context, "/homes/$alarmSystemId/users", "POST", body)
         try {
@@ -208,12 +227,22 @@ object AdminService {
         }
     }
 
-    fun updateUser(context: Context, alarmSystemId: Int, userId: Int, username: String?, email: String?, phone: String?, password: String?): Boolean = run {
+    fun updateUser(
+        context: Context,
+        alarmSystemId: Int,
+        userId: Int,
+        username: String?,
+        email: String?,
+        phone: String?,
+        password: String?,
+        homeRole: String? = null,
+    ): Boolean = run {
         val body = JSONObject().apply {
             if (username != null) put("username", username)
             if (email != null) put("email", email)
             if (phone != null) put("phone", phone)
             if (password != null) put("password", password)
+            if (homeRole != null) put("home_role", homeRole.lowercase())
         }.toString()
         val req = authRequest(context, "/homes/$alarmSystemId/users/$userId", "PUT", body)
         try {

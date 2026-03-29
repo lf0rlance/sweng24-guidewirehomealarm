@@ -67,6 +67,10 @@ class AddUserToHomeRequest(BaseModel):
     email: str
     password: str
     phone: str | None = None
+    home_role: str | None = Field(
+        default=None,
+        description="owner | spouse | child | trusted (first user in a home is always owner)",
+    )
 
 
 class LinkExistingUserToHomeRequest(BaseModel):
@@ -76,6 +80,10 @@ class LinkExistingUserToHomeRequest(BaseModel):
     password: str | None = Field(
         default=None,
         description="Optional. If set (min 8 chars), user can log in with email/password too.",
+    )
+    home_role: str | None = Field(
+        default=None,
+        description="owner | spouse | child | trusted (first user in home becomes owner)",
     )
 
 
@@ -93,3 +101,4 @@ class UpdateUserRequest(BaseModel):
     email: str | None = None
     phone: str | None = None
     password: str | None = None
+    home_role: str | None = None

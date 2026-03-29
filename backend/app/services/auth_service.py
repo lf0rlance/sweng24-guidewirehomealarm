@@ -73,6 +73,14 @@ def build_user_response(user: dict):
     role = user.get("role") or "user"
     uid = user["id"]
     now = int(time.time())
+    home_role = user.get("home_role")
+    if home_role is None:
+        try:
+            from db.home_roles import get_home_role
+
+            home_role = get_home_role(int(uid))
+        except Exception:
+            home_role = None
     # Claims required by app.security.get_current_user (sub, iat, exp) for /api/pair, GET /events, etc.
     token = jwt.encode(
         {
@@ -80,6 +88,7 @@ def build_user_response(user: dict):
             "sub": str(uid),
             "email": user["email"],
             "role": role,
+            "home_role": home_role or "",
             "iat": now,
             "exp": now + 7 * 24 * 3600,
         },
@@ -94,7 +103,8 @@ def build_user_response(user: dict):
             "name": user["name"],
             "role": role,
             "phone": user.get("phone"),
-        }
+            "home_role": home_role,
+        },
     }
 
 

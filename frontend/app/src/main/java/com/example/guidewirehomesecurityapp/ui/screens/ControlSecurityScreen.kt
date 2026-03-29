@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.guidewirehomesecurityapp.api.AlarmService
@@ -112,12 +113,28 @@ fun ControlSecurityScreen(
                 Switch(
                     checked = systemArmed,
                     onCheckedChange = { newValue ->
-                        systemArmed = newValue
                         scope.launch {
-                            val ok = withContext(Dispatchers.IO) {
+                            val result = withContext(Dispatchers.IO) {
                                 AlarmService.setArmedStatus(context, newValue)
                             }
-                            if (!ok) systemArmed = !newValue
+                            when {
+                                !result.success -> {
+                                    Toast.makeText(
+                                        context,
+                                        "Could not update alarm",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                result.pendingDisarm -> {
+                                    systemArmed = true
+                                    Toast.makeText(
+                                        context,
+                                        "Disarm request sent — the homeowner must approve.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                result.armed != null -> systemArmed = result.armed
+                            }
                         }
                     },
                     enabled = !loading,

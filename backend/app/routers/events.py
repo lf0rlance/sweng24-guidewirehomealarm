@@ -18,6 +18,7 @@ from app.services.event_service import (
     is_sequence_valid,
 )
 from db.events import save_event, get_events_for_system, get_power_samples_for_system
+from db.home_roles import can_view_history, get_home_role
 from db.sensor_labels import get_sensor_labels
 from db.device_last_seen import update_last_seen
 from app.services.notification_service import send_push_for_event
@@ -129,6 +130,10 @@ def receive_event_device(
 
 @router.get("/events")
 def get_events(current_user: AuthenticatedUser = Depends(get_current_user)):
+    hr = get_home_role(current_user.user_id)
+    if not can_view_history(hr):
+        raise HTTPException(status_code=403, detail="Sensor history is not available for your role")
+
     alarm_system_id = get_alarm_system_id_for_user(current_user.user_id)
 
     if alarm_system_id is None:
@@ -162,6 +167,10 @@ def get_recent_power(current_user: AuthenticatedUser = Depends(get_current_user)
 
 @router.get("/events/stream")
 async def stream_events(current_user: AuthenticatedUser = Depends(get_current_user)):
+    hr = get_home_role(current_user.user_id)
+    if not can_view_history(hr):
+        raise HTTPException(status_code=403, detail="Sensor history is not available for your role")
+
     alarm_system_id = get_alarm_system_id_for_user(current_user.user_id)
 
     queue: asyncio.Queue = asyncio.Queue()

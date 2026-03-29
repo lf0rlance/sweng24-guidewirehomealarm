@@ -25,6 +25,13 @@ object AlarmService {
     private fun serverBaseUrl(): String =
         BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
 
+    data class SetArmedResult(
+        val success: Boolean,
+        val armed: Boolean?,
+        val pendingDisarm: Boolean,
+        val requestId: String?,
+    )
+
     /**
      * GET /api/alarm — current armed state. Call from background thread (e.g. Dispatchers.IO).
      * @return true = armed, false = disarmed, null = error or not linked
@@ -50,12 +57,11 @@ object AlarmService {
     }
 
     /**
-     * PUT /api/alarm — set armed state. Call from background thread.
-     * @return true = success, false = failure
+     * PUT /api/alarm — set armed state. Trusted users may get pending_disarm instead of immediate disarm.
      */
-    fun setArmedStatus(context: Context, armed: Boolean): Boolean {
+    fun setArmedStatus(context: Context, armed: Boolean): SetArmedResult {
         val url = "${serverBaseUrl()}/api/alarm"
-        val token = BackendAuthService.getToken(context) ?: return false
+        val token = BackendAuthService.getToken(context) ?: return SetArmedResult(false, null, false, null)
         val body = JSONObject().apply { put("armed", armed) }
             .toString()
             .toRequestBody("application/json".toMediaType())
@@ -66,9 +72,19 @@ object AlarmService {
             .addHeader("Content-Type", "application/json")
             .build()
         return try {
-            client.newCall(request).execute().use { it.isSuccessful }
+            client.newCall(request).execute().use { response ->
+                val responseBody = response.body?.string() ?: ""
+                if (!response.isSuccessful) {
+                    return SetArmedResult(false, null, false, null)
+                }
+                val obj = JSONObject(responseBody)
+                val pending = obj.optBoolean("pending_disarm", false)
+                val rid = obj.optString("request_id", "").takeIf { it.isNotBlank() }
+                val armedOut = if (obj.has("armed")) obj.optBoolean("armed", false) else null
+                SetArmedResult(true, armedOut, pending, rid)
+            }
         } catch (_: Exception) {
-            false
+            SetArmedResult(false, null, false, null)
         }
     }
 }

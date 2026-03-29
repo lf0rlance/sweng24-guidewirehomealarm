@@ -13,6 +13,7 @@ class UserResponse(BaseModel):
     name: str
     role: Optional[str] = "user"
     phone: Optional[str] = None
+    home_role: Optional[str] = None
 
 
 class AuthResponse(BaseModel):

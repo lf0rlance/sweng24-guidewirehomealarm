@@ -35,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -605,7 +606,14 @@ private fun UsersDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("${u.username} (${u.email})", style = MaterialTheme.typography.bodyMedium)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("${u.username} (${u.email})", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    "Role: ${u.homeRole}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             Row {
                                 IconButton(onClick = { editUser = u }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Edit")
@@ -618,10 +626,10 @@ private fun UsersDialog(
                     }
                     when {
                         showLinkForm -> LinkExistingUserForm(
-                            onLink = { email, password ->
+                            onLink = { email, password, homeRole ->
                                 scope.launch {
                                     val ok = withContext(Dispatchers.IO) {
-                                        AdminService.linkExistingUser(context, home.alarmSystemId, email, password)
+                                        AdminService.linkExistingUser(context, home.alarmSystemId, email, password, homeRole)
                                     }
                                     if (ok) {
                                         onUserAdded()
@@ -642,10 +650,10 @@ private fun UsersDialog(
                             onCancel = { showLinkForm = false }
                         )
                         showAddForm -> AddUserForm(
-                            onAdd = { username, email, password, phone ->
+                            onAdd = { username, email, password, phone, homeRole ->
                                 scope.launch {
                                     val ok = withContext(Dispatchers.IO) {
-                                        AdminService.addUser(context, home.alarmSystemId, username, email, password, phone)
+                                        AdminService.addUser(context, home.alarmSystemId, username, email, password, phone, homeRole)
                                     }
                                     if (ok) {
                                         onUserAdded()
@@ -681,6 +689,7 @@ private fun UsersDialog(
         var email by remember(u.id) { mutableStateOf(u.email) }
         var phone by remember(u.id) { mutableStateOf(u.phone) }
         var password by remember(u.id) { mutableStateOf("") }
+        var homeRoleEdit by remember(u.id) { mutableStateOf(u.homeRole) }
         AlertDialog(
             onDismissRequest = { editUser = null },
             title = { Text("Edit user") },
@@ -693,13 +702,25 @@ private fun UsersDialog(
                     OutlinedTextField(value = phone, onValueChange = { phone = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Phone") })
                     Spacer(Modifier.height(4.dp))
                     OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("New password (optional)") })
+                    Spacer(Modifier.height(8.dp))
+                    Text("Home role", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                        listOf("owner", "spouse", "child", "trusted").forEach { r ->
+                            FilterChip(
+                                selected = homeRoleEdit == r,
+                                onClick = { homeRoleEdit = r },
+                                label = { Text(r) }
+                            )
+                        }
+                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
                         val ok = withContext(Dispatchers.IO) {
-                            AdminService.updateUser(context, home.alarmSystemId, u.id, username, email, phone, password.takeIf { it.isNotBlank() })
+                            AdminService.updateUser(context, home.alarmSystemId, u.id, username, email, phone, password.takeIf { it.isNotBlank() }, homeRoleEdit)
                         }
                         editUser = null
                         if (ok) {
@@ -739,15 +760,16 @@ private fun UsersDialog(
 
 @Composable
 private fun LinkExistingUserForm(
-    onLink: (email: String, password: String?) -> Unit,
+    onLink: (email: String, password: String?, homeRole: String) -> Unit,
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var homeRole by remember { mutableStateOf("spouse") }
     Column {
         Text(
-            "They must already exist in the app (e.g. “Create account” with Google). Optional password enables email login too.",
+            "They must already exist in the app (e.g. “Create account” with Google). Optional password enables email login too. First user in an empty home becomes owner automatically.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -767,6 +789,14 @@ private fun LinkExistingUserForm(
             singleLine = true,
             label = { Text("Password (optional, 8+ chars)") }
         )
+        Spacer(Modifier.height(8.dp))
+        Text("Home role", style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            listOf("owner", "spouse", "child", "trusted").forEach { r ->
+                FilterChip(selected = homeRole == r, onClick = { homeRole = r }, label = { Text(r) })
+            }
+        }
         Row {
             TextButton(onClick = {
                 if (email.isBlank()) return@TextButton
@@ -775,7 +805,7 @@ private fun LinkExistingUserForm(
                     Toast.makeText(context, "Password must be at least 8 characters", Toast.LENGTH_SHORT).show()
                     return@TextButton
                 }
-                onLink(email.trim(), p)
+                onLink(email.trim(), p, homeRole)
             }) { Text("Link to this home") }
             TextButton(onClick = onCancel) { Text("Cancel") }
         }
@@ -784,14 +814,21 @@ private fun LinkExistingUserForm(
 
 @Composable
 private fun AddUserForm(
-    onAdd: (username: String, email: String, password: String, phone: String?) -> Unit,
+    onAdd: (username: String, email: String, password: String, phone: String?, homeRole: String) -> Unit,
     onCancel: () -> Unit
 ) {
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+    var homeRole by remember { mutableStateOf("spouse") }
     Column {
+        Text(
+            "First user added to an empty home is always the homeowner (owner).",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
@@ -823,8 +860,16 @@ private fun AddUserForm(
             singleLine = true,
             label = { Text("Phone (optional)") }
         )
+        Spacer(Modifier.height(8.dp))
+        Text("Home role", style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            listOf("owner", "spouse", "child", "trusted").forEach { r ->
+                FilterChip(selected = homeRole == r, onClick = { homeRole = r }, label = { Text(r) })
+            }
+        }
         Row {
-            TextButton(onClick = { onAdd(username, email, password, phone.takeIf { it.isNotBlank() }) }) { Text("Create") }
+            TextButton(onClick = { onAdd(username, email, password, phone.takeIf { it.isNotBlank() }, homeRole) }) { Text("Create") }
             TextButton(onClick = onCancel) { Text("Cancel") }
         }
     }

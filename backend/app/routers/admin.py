@@ -121,6 +121,7 @@ def add_user_to_home(
         password=body.password,
         alarm_system_id=alarm_system_id,
         phone=body.phone.strip() if body.phone else None,
+        home_role=(body.home_role.strip().lower() if body.home_role else None),
     ):
         raise HTTPException(status_code=400, detail="User already exists or invalid data")
     return {"status": "ok", "message": "User created"}
@@ -143,7 +144,13 @@ def link_existing_user_to_home_endpoint(
         email=body.email.strip(),
         alarm_system_id=alarm_system_id,
         password=pwd if pwd else None,
+        home_role=(body.home_role.strip().lower() if body.home_role else None),
     )
+    if err == "owner_exists":
+        raise HTTPException(
+            status_code=409,
+            detail="A homeowner already exists — choose spouse, child, or trusted",
+        )
     if err == "not_found":
         raise HTTPException(status_code=404, detail="No user with that email — they must sign up or log in once first")
     if err == "already_other_home":
@@ -171,6 +178,7 @@ def update_user_in_home(
         email=body.email,
         phone=body.phone,
         password=body.password,
+        home_role=(body.home_role.strip().lower() if body.home_role else None),
     ):
         raise HTTPException(status_code=400, detail="User not found or invalid data")
     return {"status": "ok"}
