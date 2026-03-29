@@ -28,7 +28,12 @@ if not devices:
     led.duty(5)
 else:
     print("I2C devices found at:", [hex(d) for d in devices])
-reed = machine.Pin(4, machine.Pin.IN, machine.Pin.PULL_UP)
+reed = machine.Pin(config.REED1_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
+reed2 = (
+    machine.Pin(config.REED2_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
+    if getattr(config, "REED2_PIN", None) is not None
+    else None
+)
 events = EventManager(device_id=config.DEVICE_ID)
 
 try:
@@ -40,6 +45,8 @@ last_power_check = 0
 POWER_INTERVAL_MS = 100
 reed_state = reed.value()
 last_reed_change = time.ticks_ms()
+reed2_state = reed2.value() if reed2 else 0
+last_reed2_change = time.ticks_ms()
 MAX_CURRENT_EXPECTED = 400
 DEBOUNCE_MS = 10
 
@@ -71,6 +78,35 @@ def check_door_closed():
         return True
     return False
 
+
+def check_door_open_2():
+    """Second sensor (D14): door_open_2 when open (1)."""
+    global reed2_state, last_reed2_change
+    if reed2 is None:
+        return False
+    now = time.ticks_ms()
+    cur = reed2.value()
+    if cur != reed2_state and now - last_reed2_change >= DEBOUNCE_MS and cur == 1:
+        reed2_state = cur
+        last_reed2_change = now
+        return True
+    return False
+
+
+def check_door_closed_2():
+    """Second sensor: door_closed_2 when closed (0)."""
+    global reed2_state, last_reed2_change
+    if reed2 is None:
+        return False
+    now = time.ticks_ms()
+    cur = reed2.value()
+    if cur != reed2_state and now - last_reed2_change >= DEBOUNCE_MS and cur == 0:
+        reed2_state = cur
+        last_reed2_change = now
+        return True
+    return False
+
+
 def check_power():
     global last_power_check
     now = time.ticks_ms()
@@ -99,6 +135,9 @@ def check_power():
 
 events.on("door_open", check_door_open)
 events.on("door_closed", check_door_closed)
+if reed2 is not None:
+    events.on("door_open_2", check_door_open_2)
+    events.on("door_closed_2", check_door_closed_2)
 events.on("current_power_usage", check_power)
 
 

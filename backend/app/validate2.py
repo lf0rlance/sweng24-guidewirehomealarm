@@ -30,7 +30,16 @@ class ValidateData(BaseModel):
     #where x are digits
     device_id: Annotated[str, Field(pattern=r"^esp32_\d+$")]
     #event type field can only be one of those in the array, if not -> validation fails
-    event_type: Literal["door_open", "door_closed", "alarm_enabled", "alarm_disabled", "led_toggle", "current_power_usage"]
+    event_type: Literal[
+        "door_open",
+        "door_closed",
+        "door_open_2",
+        "door_closed_2",
+        "alarm_enabled",
+        "alarm_disabled",
+        "led_toggle",
+        "current_power_usage",
+    ]
     #count should be of type int and gretater than zero
     count: Annotated[int, Field(gt=0)]
     # optional value for power usage events
@@ -63,6 +72,8 @@ class ValidateDataIngest(BaseModel):
     event_type: Literal[
         "door_open",
         "door_closed",
+        "door_open_2",
+        "door_closed_2",
         "alarm_enabled",
         "alarm_disabled",
         "led_toggle",

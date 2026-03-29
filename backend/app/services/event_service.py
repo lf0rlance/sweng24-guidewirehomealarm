@@ -47,7 +47,13 @@ def is_sequence_valid(device_id: str, count: int) -> bool:
         _last_counts[device_id] = count
         return True
 
-    if count == _last_counts[device_id] + 1:
+    last = _last_counts[device_id]
+    if count == last + 1:
+        _last_counts[device_id] = count
+        return True
+
+    # ESP/MicroPython power-cycle resets in-memory event counters; server RAM still has the old high water mark.
+    if count <= last:
         _last_counts[device_id] = count
         return True
 

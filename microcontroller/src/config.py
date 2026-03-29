@@ -17,4 +17,8 @@ ESP32_INGEST_SECRET = "whatever"
 
 # Unique per physical board. Must match microcontroller_id in the DB: esp32_001 -> id 1, esp32_002 -> id 2, etc.
 # Flash different config.py on each ESP32 (or edit this line before uploading).
-DEVICE_ID = "esp32_002"
+DEVICE_ID = "esp32_001"
+
+# Reed / magnetic sensors: GPIO number, pull-up, active HIGH when open (adjust if your wiring differs).
+REED1_PIN = 4   # D4 — first sensor
+REED2_PIN = 14  # D14 — second sensor (set to None to disable)

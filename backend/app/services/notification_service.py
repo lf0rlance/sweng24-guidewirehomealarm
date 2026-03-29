@@ -69,7 +69,7 @@ def init_firebase_if_needed() -> bool:
 
 
 # Event types we send push for (ESP32 may send "led_toggle" for reed; backend also supports door_open/door_closed)
-_PUSH_EVENT_TYPES = ("door_open", "door_closed", "led_toggle")
+_PUSH_EVENT_TYPES = ("door_open", "door_closed", "door_open_2", "door_closed_2", "led_toggle")
 
 
 def _format_event_time(timestamp: float) -> str:
@@ -107,6 +107,10 @@ def send_push_for_event(event_dict: Dict[str, Any], alarm_system_id: Optional[in
             title = "Door opened"
         elif event_type == "door_closed":
             title = "Door closed"
+        elif event_type == "door_open_2":
+            title = "Sensor 2 opened"
+        elif event_type == "door_closed_2":
+            title = "Sensor 2 closed"
         else:
             title = "Sensor event"  # led_toggle or other
         ts = event_dict.get("timestamp")

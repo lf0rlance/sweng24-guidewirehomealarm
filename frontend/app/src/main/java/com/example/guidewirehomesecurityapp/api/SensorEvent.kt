@@ -14,6 +14,8 @@ data class SensorEvent(
     fun displayType(): String = when (event_type) {
         "door_open" -> "Door opened"
         "door_closed" -> "Door closed"
+        "door_open_2" -> "Sensor 2 opened"
+        "door_closed_2" -> "Sensor 2 closed"
         "alarm_enabled" -> "Alarm armed"
         "alarm_disabled" -> "Alarm disarmed"
         "led_toggle" -> "Sensor toggled"

@@ -79,6 +79,10 @@ fun SensorHistoryScreen(
             when (selectedType) {
                 "all" -> true
                 "alarm" -> event.event_type == "alarm_enabled" || event.event_type == "alarm_disabled"
+                "door_open" ->
+                    event.event_type == "door_open" || event.event_type == "door_open_2"
+                "door_closed" ->
+                    event.event_type == "door_closed" || event.event_type == "door_closed_2"
                 else -> event.event_type == selectedType
             }
         }
@@ -274,8 +278,8 @@ private fun SensorHistoryEventCard(event: SensorEvent) {
         "—"
     }
     val openedOrClosed = when (event.event_type) {
-        "door_open" -> "Opened"
-        "door_closed" -> "Closed"
+        "door_open", "door_open_2" -> "Opened"
+        "door_closed", "door_closed_2" -> "Closed"
         else -> event.displayType()
     }
     Card(
