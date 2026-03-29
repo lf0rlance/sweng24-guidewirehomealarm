@@ -10,8 +10,11 @@ from app.models.request_models import (
     ConnectDeviceRequest,
 )
 from app.models.response_models import SimpleStatusResponse, MicrocontrollerConnectResponse
-from db.connectToAlarmSystem import connectUserToSystem, getCurrentAlarmSystemID
-from db.connectMCtoAlarmSystem import connectMicroController, connect_microcontroller_by_user_id
+from db.connectToAlarmSystem import (
+    connectUserToSystem,
+    get_alarm_system_id_by_user_id,
+)
+from db.connectMCtoAlarmSystem import connect_microcontroller_by_user_id
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
@@ -52,15 +55,12 @@ def connect_microcontroller(
     request: ConnectMicrocontrollerRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ):
-    system_id = getCurrentAlarmSystemID(current_user.user_id)
+    system_id = get_alarm_system_id_by_user_id(current_user.user_id)
 
     if system_id is None:
         raise HTTPException(status_code=400, detail="User not paired")
 
-    if not connectMicroController(
-        microControllerId=request.microcontroller_id,
-        user_id=current_user.user_id,
-    ):
+    if not connect_microcontroller_by_user_id(current_user.user_id, request.microcontroller_id):
         raise HTTPException(status_code=400, detail="Connection failed")
 
     return {

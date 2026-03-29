@@ -53,6 +53,26 @@ class ValidateData(BaseModel):
         return value
 
 
+class ValidateDataIngest(BaseModel):
+    """
+    Same JSON as the app/device sends, but timestamp is optional.
+    ESP32 boards often have no NTP — client time can be years off — so ingest uses server time.
+    """
+
+    device_id: Annotated[str, Field(pattern=r"^esp32_\d+$")]
+    event_type: Literal[
+        "door_open",
+        "door_closed",
+        "alarm_enabled",
+        "alarm_disabled",
+        "led_toggle",
+        "current_power_usage",
+    ]
+    count: Annotated[int, Field(gt=0)]
+    value: float | None = None
+    timestamp: float | None = None
+
+
 received_count = []
 
 app = FastAPI()

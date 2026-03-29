@@ -96,7 +96,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return request.client.host if request.client else "unknown"
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in ("/health", "/ready"):
+        # ESP32 can send many events (e.g. power samples every 100ms); do not throttle ingest.
+        if request.url.path in ("/health", "/ready", "/api/events/ingest"):
             return await call_next(request)
 
         key = self.key_func(request)

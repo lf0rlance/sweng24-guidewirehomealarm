@@ -29,7 +29,7 @@ if not devices:
 else:
     print("I2C devices found at:", [hex(d) for d in devices])
 reed = machine.Pin(4, machine.Pin.IN, machine.Pin.PULL_UP)
-events = EventManager(device_id="esp32_001")
+events = EventManager(device_id=config.DEVICE_ID)
 
 try:
     energy_sensor = INA219(i2c, addr=I2C_ADDR)

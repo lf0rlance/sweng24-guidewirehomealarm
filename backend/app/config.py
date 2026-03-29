@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # Push notifications (FCM). Optional: path to Firebase service account JSON.
     firebase_credentials_path: Optional[str] = None
 
+    # Shared secret for ESP32 → POST /api/events/ingest (no user JWT on device).
+    esp32_ingest_secret: Optional[str] = None
+
     # TLS (optional). Set both to enable HTTPS.
     ssl_certfile: Optional[str] = None
     ssl_keyfile: Optional[str] = None

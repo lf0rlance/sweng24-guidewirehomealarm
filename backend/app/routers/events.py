@@ -1,11 +1,13 @@
 #
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 import asyncio
 import json
 import time
+from typing import Optional
 
-from app.validate2 import ValidateData
+from app.config import settings
+from app.validate2 import ValidateData, ValidateDataIngest
 from app.security import get_current_user, AuthenticatedUser
 from app.services.event_service import (
     EVENTS,
@@ -39,14 +41,8 @@ def _is_system_armed(alarm_system_id) -> bool:
         return False
 
 
-@router.post("/api/events")
-def receive_event(
-    event: ValidateData,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-):
-    if not is_microcontroller_registered_to_user(event.device_id, current_user.user_id):
-        raise HTTPException(status_code=403, detail="Device not registered to this user")
-
+def _apply_event(event: ValidateData) -> dict:
+    """Validate dedup/sequence, persist, stream, notify. Returns response dict."""
     if is_duplicate(event.device_id, event.count):
         raise HTTPException(status_code=409, detail="Duplicate event")
 
@@ -70,9 +66,7 @@ def receive_event(
             update_last_seen(event.device_id, event_dict["timestamp"])
         except Exception:
             pass
-    # Debug: print current_power_usage events being received
     if event.event_type == "current_power_usage":
-        
         print(f"Power Event #{event.count} received. Usage: {event.value}mA")
 
     for queue, client_system_id in connected_clients:
@@ -83,6 +77,53 @@ def receive_event(
         send_push_for_event(event_dict, alarm_system_id)
 
     return {"status": "ok", "message": "Event received"}
+
+
+@router.post("/api/events")
+def receive_event(
+    event: ValidateData,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    if not is_microcontroller_registered_to_user(event.device_id, current_user.user_id):
+        raise HTTPException(status_code=403, detail="Device not registered to this user")
+
+    return _apply_event(event)
+
+
+@router.post("/api/events/ingest")
+def receive_event_device(
+    body: ValidateDataIngest,
+    x_esp32_secret: Optional[str] = Header(None, alias="X-ESP32-Secret"),
+):
+    """
+    ESP32 / MicroPython: use this instead of POST /api/events (no user JWT on device).
+    Set the same secret in backend .env (ESP32_INGEST_SECRET) and on the board.
+    The microcontroller must already be linked to a home (app: device connect / admin).
+    Client timestamps are ignored (ESP32 often has no NTP); server time is used in validation.
+    """
+    secret = (settings.esp32_ingest_secret or "").strip()
+    if not secret:
+        raise HTTPException(
+            status_code=503,
+            detail="ESP32 ingest disabled: set ESP32_INGEST_SECRET in backend .env",
+        )
+    if (x_esp32_secret or "").strip() != secret:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-ESP32-Secret")
+
+    if get_alarm_system_id_for_device(body.device_id) is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Device not linked to a home — connect it in the app (or admin) first",
+        )
+
+    event = ValidateData(
+        device_id=body.device_id,
+        event_type=body.event_type,
+        count=body.count,
+        value=body.value,
+        timestamp=time.time(),
+    )
+    return _apply_event(event)
 
 
 @router.get("/events")

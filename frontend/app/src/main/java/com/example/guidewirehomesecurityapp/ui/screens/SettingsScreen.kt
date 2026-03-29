@@ -77,14 +77,39 @@ fun SettingsScreen(
                             }
                             Toast.makeText(
                                 context,
-                                if (ok) "ESP32 linked. Real sensor events and notifications will now appear." else "Could not link device. Check backend and try again.",
+                                if (ok) "ESP32 #1 linked (esp32_001). Real sensor events and notifications will now appear." else "Could not link device. Check backend and try again.",
                                 Toast.LENGTH_LONG
                             ).show()
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Link ESP32 (show real sensor events)")
+                    Text("Link 1st ESP32 (esp32_001)")
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                EventService.connectDevice(context, microcontrollerId = 2)
+                            }
+                            if (ok) {
+                                FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                                    if (task.isSuccessful) {
+                                        task.result?.let { AlarmFirebaseMessagingService.registerTokenWithBackend(context, it) }
+                                    }
+                                }
+                            }
+                            Toast.makeText(
+                                context,
+                                if (ok) "ESP32 #2 linked (esp32_002)." else "Could not link device. Check backend and try again.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Link 2nd ESP32 (esp32_002)")
                 }
                 Spacer(Modifier.height(12.dp))
                 Button(

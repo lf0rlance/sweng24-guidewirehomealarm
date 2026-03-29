@@ -67,7 +67,11 @@ def get_alarm_system_id_by_device_id(device_id: str) -> int | None:
     if not match:
         return None
     mc_id = int(match.group(1))
-    conn = connectToDB.connectToDB()
+    try:
+        conn = connectToDB.connectToDB()
+    except Exception:
+        # connectToDB raises on failure; do not crash API handlers (e.g. /api/events/ingest)
+        return None
     if conn is None:
         return None
     try:
