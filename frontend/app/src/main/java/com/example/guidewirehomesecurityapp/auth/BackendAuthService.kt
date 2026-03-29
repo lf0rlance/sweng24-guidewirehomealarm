@@ -124,7 +124,8 @@ object BackendAuthService {
     fun signIn(
         context: Context,
         idToken: String,
-        onMfaRequired: (String) -> Unit,   // passes email to show OTP screen
+        onSuccess: () -> Unit,
+        onMfaRequired: (String) -> Unit,
         onError: (String) -> Unit
     ) {
         thread {
@@ -146,9 +147,22 @@ object BackendAuthService {
                 val responseBody = response.body?.string()
                 if (response.isSuccessful) {
                     val obj = JSONObject(responseBody ?: "{}")
-                    val email = obj.optString("email", "")
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        onMfaRequired(email)
+                    val jwt = obj.optString("token", "").takeIf { it.isNotBlank() }
+                    if (jwt != null) {
+                        val user = obj.optJSONObject("user")
+                        val role = user?.optString("role", "user")?.takeIf { it.isNotBlank() } ?: "user"
+                        val username = user?.optString("name", "")?.takeIf { it.isNotBlank() }
+                        saveToken(context, jwt, role, username)
+                        android.os.Handler(android.os.Looper.getMainLooper()).post { onSuccess() }
+                    } else if (obj.optBoolean("mfa_required", false)) {
+                        val email = obj.optString("email", "")
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            onMfaRequired(email)
+                        }
+                    } else {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            onError("Unexpected sign-in response")
+                        }
                     }
                 } else {
                     val errorMsg = try {
