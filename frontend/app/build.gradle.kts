@@ -32,6 +32,13 @@ android {
             "\"${localProperties["API_BASE_URL"]}\""
         )
 
+        // Optional second backend base (e.g. mDNS sweng-pi.local while primary is a DHCP IP).
+        buildConfigField(
+            "String",
+            "API_BASE_URL_ALT",
+            "\"${localProperties["API_BASE_URL_ALT"] ?: ""}\""
+        )
+
         buildConfigField(
             "String",
             "IMAGE_BASE_URL",

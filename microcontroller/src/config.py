@@ -9,9 +9,10 @@ AP_PASSWORD = "Group24"  # Must be at least 8 characters
 WIFI_SSID = "Pixel_2602"
 WIFI_PASSWORD = "00000000"
 
-# Backend: Pi (or dev PC) on your LAN — same URL the phone uses, port 8000 if using Docker.
+# Backend: Pi on your LAN — same host/port as the app (Docker usually :8000).
+# Prefer mDNS if your Pi advertises it (e.g. sweng24homealarm.local); else use http://<PI_IP>:8000/...
 # Use /api/events/ingest with X-ESP32-Secret (see backend ESP32_INGEST_SECRET in .env).
-BACKEND_URL = "http://10.40.244.187:8000/api/events/ingest"
+BACKEND_URL = "http://sweng24homealarm.local:8000/api/events/ingest"
 # Must match backend/.env ESP32_INGEST_SECRET (set a long random string on the Pi).
 ESP32_INGEST_SECRET = "whatever"
 

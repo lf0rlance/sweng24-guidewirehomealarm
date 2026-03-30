@@ -3,6 +3,7 @@ package com.example.guidewirehomesecurityapp.api
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
 import android.util.Log
 import com.example.guidewirehomesecurityapp.BuildConfig
 import okhttp3.OkHttpClient
@@ -18,9 +19,17 @@ import java.util.concurrent.TimeUnit
  * Resolves backend URL dynamically on local Wi-Fi/hotspot networks.
  *
  * Behavior:
+ * - **Emulator + backend on this PC:** if API_BASE_URL host is localhost/127.0.0.1, uses `10.0.2.2`
+ *   (AVD alias for the host) with the same port.
+ * - **Emulator + backend elsewhere:** tries API_BASE_URL first; if `/health` fails (common when the
+ *   PC is not on the Pi/hotspot LAN), tries `10.0.2.2:PORT` so the API can be reached via the dev PC
+ *   (backend or proxy listening on that port on the host).
+ * - **API_BASE_URL_ALT** (optional in local.properties): second base URL tried in order (e.g. mDNS
+ *   `http://sweng-pi.local:8000/api/` vs a DHCP IP). Same LAN for demo: Pi can advertise
+ *   `.local` via Avahi; keep primary IP as backup.
  * - Uses API_BASE_URL from local.properties as fallback.
  * - Tries previously discovered host first (per subnet).
- * - If unreachable, scans current /24 subnet for /health on same port.
+ * - If unreachable, scans current /24 subnet for /health on same port (skipped on emulator when URL is remote).
  */
 object BackendEndpointResolver {
     private const val TAG = "BackendEndpointResolver"
@@ -32,9 +41,9 @@ object BackendEndpointResolver {
     @Volatile private var cachedApiBase: String? = null
 
     private val probeClient = OkHttpClient.Builder()
-        .connectTimeout(1200, TimeUnit.MILLISECONDS)
-        .readTimeout(1200, TimeUnit.MILLISECONDS)
-        .writeTimeout(1200, TimeUnit.MILLISECONDS)
+        .connectTimeout(3000, TimeUnit.MILLISECONDS)
+        .readTimeout(3000, TimeUnit.MILLISECONDS)
+        .writeTimeout(3000, TimeUnit.MILLISECONDS)
         .build()
 
     fun apiBaseUrl(context: Context): String {
@@ -43,9 +52,35 @@ object BackendEndpointResolver {
             cachedApiBase = null
         }
 
-        val fallbackApi = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
-        val fallbackHttp = fallbackApi.toHttpUrlOrNull() ?: return fallbackApi
-        val subnetPrefixes = candidateSubnetPrefixes(context)
+        val candidates = apiBaseCandidates()
+        val primaryBase = candidates.firstOrNull()
+            ?: normalizeApiBase(BuildConfig.API_BASE_URL)
+        val fallbackHttp = primaryBase.toHttpUrlOrNull() ?: return primaryBase
+
+        // AVD: 10.0.2.2 reaches the *development machine* only — not a Pi/phone on another network.
+        if (isAndroidEmulator() && isLocalBackendHost(fallbackHttp.host)) {
+            val emulatorBase = buildBase(fallbackHttp, "10.0.2.2")
+            if (isHealthy(emulatorBase)) {
+                cachedApiBase = emulatorBase
+                Log.d(TAG, "Emulator: backend at host loopback $emulatorBase (same port as API_BASE_URL)")
+                return emulatorBase
+            }
+            Log.w(
+                TAG,
+                "Emulator: cannot reach $emulatorBase/health — run backend on this PC or fix port; trying normal fallback"
+            )
+        }
+
+        // Emulator virtual network is 10.0.2.0/24; scanning it never finds a remote server.
+        val subnetPrefixes = if (isAndroidEmulator() && !isLocalBackendHost(fallbackHttp.host)) {
+            Log.d(
+                TAG,
+                "Emulator: remote API host ${fallbackHttp.host}; skipping LAN subnet scan (use BuildConfig URL or same-network routing)"
+            )
+            emptyList()
+        } else {
+            candidateSubnetPrefixes(context)
+        }
         val primarySubnet = subnetPrefixes.firstOrNull()
 
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -61,10 +96,34 @@ object BackendEndpointResolver {
             }
         }
 
-        if (isHealthy(fallbackApi)) {
-            cachedApiBase = fallbackApi
-            Log.d(TAG, "Using fallback backend host from BuildConfig: $fallbackApi")
-            return fallbackApi
+        // Try each configured URL (API_BASE_URL, then optional API_BASE_URL_ALT)
+        for (base in candidates) {
+            if (isHealthy(base)) {
+                cachedApiBase = base
+                Log.d(TAG, "Using backend base from BuildConfig: $base")
+                return base
+            }
+        }
+
+        // AVD often cannot route to a LAN/hotspot IP (PC not on that network). Same port on 10.0.2.2
+        // reaches the dev machine — use if the API is bound there or proxied (e.g. ssh -L, socat).
+        if (isAndroidEmulator() && !isLocalBackendHost(fallbackHttp.host)) {
+            val viaDevHost = buildBase(fallbackHttp, "10.0.2.2")
+            if (isHealthy(viaDevHost)) {
+                cachedApiBase = viaDevHost
+                Log.d(
+                    TAG,
+                    "Emulator: BuildConfig host unreachable; using dev host $viaDevHost " +
+                        "(run API on this PC that port, or forward host:${fallbackHttp.port} → server)"
+                )
+                return viaDevHost
+            }
+            Log.w(
+                TAG,
+                "Emulator: cannot reach $candidates or $viaDevHost (/health). " +
+                    "Put this PC on the same Wi‑Fi/hotspot as the server, or listen on host:${fallbackHttp.port} " +
+                    "and retry (10.0.2.2 maps emulator → this PC). Or test on a physical phone on the server LAN."
+            )
         }
 
         for (subnetPrefix in subnetPrefixes) {
@@ -82,9 +141,10 @@ object BackendEndpointResolver {
             }
         }
 
-        cachedApiBase = fallbackApi
-        Log.w(TAG, "Backend discovery failed; falling back to BuildConfig host: $fallbackApi")
-        return fallbackApi
+        val fallbackReturn = candidates.firstOrNull() ?: primaryBase
+        cachedApiBase = fallbackReturn
+        Log.w(TAG, "Backend discovery failed; falling back to BuildConfig host: $fallbackReturn")
+        return fallbackReturn
     }
 
     fun imageBaseUrl(context: Context): String {
@@ -98,6 +158,19 @@ object BackendEndpointResolver {
             .build()
             .toString()
             .trimEnd('/')
+    }
+
+    private fun normalizeApiBase(raw: String): String =
+        raw.trim().trimEnd('/').removeSuffix("/api")
+
+    /** Ordered list: primary [API_BASE_URL], optional [API_BASE_URL_ALT]. */
+    private fun apiBaseCandidates(): List<String> {
+        val primary = normalizeApiBase(BuildConfig.API_BASE_URL)
+        val alt = normalizeApiBase(BuildConfig.API_BASE_URL_ALT)
+        return buildList {
+            if (primary.isNotBlank()) add(primary)
+            if (alt.isNotBlank() && alt != primary) add(alt)
+        }
     }
 
     private fun discoverInSubnet(
@@ -272,5 +345,30 @@ object BackendEndpointResolver {
             first == 192 && second == 168 -> true
             else -> false
         }
+    }
+
+    /** True when API_BASE_URL points at "this machine" for emulator → 10.0.2.2 mapping. */
+    private fun isLocalBackendHost(host: String?): Boolean {
+        if (host.isNullOrBlank()) return true
+        val h = host.lowercase()
+        return h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "10.0.2.2"
+    }
+
+    /** Official AVD / common emulator images (not 100% of third-party emulators). */
+    private fun isAndroidEmulator(): Boolean {
+        return Build.FINGERPRINT.startsWith("generic")
+            || Build.FINGERPRINT.startsWith("unknown")
+            || Build.MODEL.contains("google_sdk")
+            || Build.MODEL.lowercase().contains("droid4x")
+            || Build.MODEL.contains("Emulator")
+            || Build.MODEL.contains("Android SDK built for x86")
+            || Build.MANUFACTURER.contains("Genymotion")
+            || Build.HARDWARE.contains("goldfish")
+            || Build.HARDWARE.contains("ranchu")
+            || Build.PRODUCT.contains("sdk_google")
+            || Build.PRODUCT.contains("google_sdk")
+            || Build.PRODUCT.contains("sdk_gphone")
+            || Build.PRODUCT.contains("emulator")
+            || Build.PRODUCT.contains("simulator")
     }
 }
