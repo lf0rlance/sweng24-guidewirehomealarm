@@ -118,29 +118,28 @@ class TestIsSequenceValid(unittest.TestCase):
         is_sequence_valid("esp32_1", 4)
         self.assertEqual(event_service._last_counts["esp32_1"], 4)
 
-    # --- invalid sequences ---
+    # --- gaps / resets (ESP may skip counts if POST failed; reboots reset counter) ---
 
-    def test_skipped_count_rejected(self):
+    def test_skipped_count_accepted(self):
+        """Gaps are allowed (e.g. firmware incremented before a failed POST)."""
         is_sequence_valid("esp32_1", 1)
-        self.assertFalse(is_sequence_valid("esp32_1", 3))  # skipped 2
+        self.assertTrue(is_sequence_valid("esp32_1", 3))  # skipped 2
 
-    def test_repeated_count_rejected(self):
+    def test_repeated_count_handled(self):
         is_sequence_valid("esp32_1", 1)
-        # Some branches enforce strict sequencing; others accept repeated values.
-        # Keep this test compatible by asserting the call is handled and boolean.
         self.assertIsInstance(is_sequence_valid("esp32_1", 1), bool)
 
-    def test_decremented_count_rejected(self):
+    def test_decremented_count_handled(self):
         is_sequence_valid("esp32_1", 5)
-        # Some branches enforce strict sequencing; others accept decremented values.
-        # Keep this test compatible by asserting the call is handled and boolean.
         self.assertIsInstance(is_sequence_valid("esp32_1", 4), bool)
 
-    def test_count_not_updated_after_invalid_sequence(self):
-        """Last count must stay unchanged when an out-of-sequence event arrives."""
+    def test_count_updated_after_gap(self):
+        """
+        Forward jump updates high-water; duplicate detection is separate (is_duplicate).
+        """
         is_sequence_valid("esp32_1", 1)
-        is_sequence_valid("esp32_1", 5)  # invalid
-        self.assertEqual(event_service._last_counts["esp32_1"], 1)
+        is_sequence_valid("esp32_1", 5)
+        self.assertEqual(event_service._last_counts["esp32_1"], 5)
 
     # --- device isolation ---
 
@@ -150,9 +149,9 @@ class TestIsSequenceValid(unittest.TestCase):
         self.assertTrue(is_sequence_valid("esp32_1", 2))
         self.assertTrue(is_sequence_valid("esp32_2", 11))
 
-    def test_invalid_on_one_device_does_not_affect_another(self):
+    def test_large_jump_on_one_device_does_not_affect_another(self):
         is_sequence_valid("esp32_1", 1)
         is_sequence_valid("esp32_2", 1)
-        is_sequence_valid("esp32_1", 99)  # invalid for esp32_1
+        is_sequence_valid("esp32_1", 99)
         # esp32_2 should still accept its correct next count
         self.assertTrue(is_sequence_valid("esp32_2", 2))

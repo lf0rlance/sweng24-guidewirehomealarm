@@ -43,13 +43,14 @@ def _is_system_armed(alarm_system_id) -> bool:
         return False
 
 
-def _apply_event(event: ValidateData) -> dict:
+def _apply_event(event: ValidateData, idempotent_duplicate: bool = False) -> dict:
     """Validate dedup/sequence, persist, stream, notify. Returns response dict."""
     if is_duplicate(event.device_id, event.count):
+        if idempotent_duplicate:
+            return {"status": "ok", "message": "Duplicate event ignored", "duplicate": True}
         raise HTTPException(status_code=409, detail="Duplicate event")
 
-    if not is_sequence_valid(event.device_id, event.count):
-        raise HTTPException(status_code=400, detail="Invalid event sequence")
+    is_sequence_valid(event.device_id, event.count)  # updates per-device high-water (gaps allowed)
 
     alarm_system_id = get_alarm_system_id_for_device(event.device_id)
 
@@ -89,7 +90,7 @@ def receive_event(
     if not is_microcontroller_registered_to_user(event.device_id, current_user.user_id):
         raise HTTPException(status_code=403, detail="Device not registered to this user")
 
-    return _apply_event(event)
+    return _apply_event(event, idempotent_duplicate=False)
 
 
 @router.post("/api/events/ingest")
@@ -125,7 +126,7 @@ def receive_event_device(
         value=body.value,
         timestamp=time.time(),
     )
-    return _apply_event(event)
+    return _apply_event(event, idempotent_duplicate=True)
 
 
 @router.get("/events")
