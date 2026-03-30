@@ -125,8 +125,9 @@ class TestTokenOnEventsEndpoints(unittest.TestCase):
         response = self.client.get("/events", headers=auth_header(token))
         self.assertEqual(response.status_code, 401)
 
+    @patch("db.connectToAlarmSystem.get_alarm_system_id_by_user_id", return_value=None)
     @patch("app.routers.events.get_alarm_system_id_for_user", return_value=None)
-    def test_iat_at_current_time_returns_200(self, _mock_system_id):
+    def test_iat_at_current_time_returns_200(self, _mock_system_id, _mock_direct_db):
         """iat set to now (no skew) — should pass."""
         token = make_token(iat_offset=0)
         response = self.client.get("/events", headers=auth_header(token))
@@ -134,8 +135,9 @@ class TestTokenOnEventsEndpoints(unittest.TestCase):
 
     # --- valid token ---
 
+    @patch("db.connectToAlarmSystem.get_alarm_system_id_by_user_id", return_value=None)
     @patch("app.routers.events.get_alarm_system_id_for_user", return_value=None)
-    def test_valid_token_get_events_returns_200(self, _mock_system_id):
+    def test_valid_token_get_events_returns_200(self, _mock_system_id, _mock_direct_db):
         token = make_token()
         response = self.client.get("/events", headers=auth_header(token))
         self.assertEqual(response.status_code, 200)
