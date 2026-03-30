@@ -1,7 +1,6 @@
 package com.example.guidewirehomesecurityapp.api
 
 import android.content.Context
-import com.example.guidewirehomesecurityapp.BuildConfig
 import com.example.guidewirehomesecurityapp.auth.BackendAuthService
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -20,7 +19,7 @@ object HomeService {
         .build()
 
     private fun base(context: Context) =
-        BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+        BackendEndpointResolver.apiBaseUrl(context)
 
     private fun auth(context: Context, path: String, method: String, body: String? = null): Request {
         val token = BackendAuthService.getToken(context) ?: ""

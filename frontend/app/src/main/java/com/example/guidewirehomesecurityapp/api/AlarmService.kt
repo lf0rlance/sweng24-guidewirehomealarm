@@ -1,7 +1,6 @@
 package com.example.guidewirehomesecurityapp.api
 
 import android.content.Context
-import com.example.guidewirehomesecurityapp.BuildConfig
 import com.example.guidewirehomesecurityapp.auth.BackendAuthService
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -22,8 +21,8 @@ object AlarmService {
         .writeTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    private fun serverBaseUrl(): String =
-        BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+    private fun serverBaseUrl(context: Context): String =
+        BackendEndpointResolver.apiBaseUrl(context)
 
     data class SetArmedResult(
         val success: Boolean,
@@ -37,7 +36,7 @@ object AlarmService {
      * @return true = armed, false = disarmed, null = error or not linked
      */
     fun getArmedStatus(context: Context): Boolean? {
-        val url = "${serverBaseUrl()}/api/alarm"
+        val url = "${serverBaseUrl(context)}/api/alarm"
         val token = BackendAuthService.getToken(context) ?: return null
         val request = Request.Builder()
             .url(url)
@@ -60,7 +59,7 @@ object AlarmService {
      * PUT /api/alarm — set armed state. Trusted users may get pending_disarm instead of immediate disarm.
      */
     fun setArmedStatus(context: Context, armed: Boolean): SetArmedResult {
-        val url = "${serverBaseUrl()}/api/alarm"
+        val url = "${serverBaseUrl(context)}/api/alarm"
         val token = BackendAuthService.getToken(context) ?: return SetArmedResult(false, null, false, null)
         val body = JSONObject().apply { put("armed", armed) }
             .toString()

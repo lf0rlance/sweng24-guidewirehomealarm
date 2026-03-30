@@ -2,7 +2,7 @@ package com.example.guidewirehomesecurityapp.auth
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.example.guidewirehomesecurityapp.BuildConfig
+import com.example.guidewirehomesecurityapp.api.BackendEndpointResolver
 import kotlin.concurrent.thread
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -77,7 +77,7 @@ object BackendAuthService {
             try {
                 val json = JSONObject().apply { put("idToken", idToken) }
                 val body = json.toString().toRequestBody("application/json".toMediaType())
-                val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+                val base = BackendEndpointResolver.apiBaseUrl(context)
                 val url = "$base/api$path"
                 android.util.Log.d("BackendAuth", "Request URL: $url")
                 val request = Request.Builder()
@@ -125,7 +125,7 @@ object BackendAuthService {
                 e.printStackTrace()
                 val message = when {
                     e is java.net.SocketTimeoutException || e is java.net.ConnectException ->
-                        "Can't reach server. If using a physical device, set API_BASE_URL in frontend/local.properties to your PC's IP (e.g. http://192.168.0.x:5000/api/). 10.0.2.2 only works on the emulator."
+                        "Can't reach server. The app now auto-discovers backend IP on your hotspot, but verify backend is running on port 5000 and reachable on this network."
                     else -> "Network error: ${e.message}"
                 }
                 android.os.Handler(android.os.Looper.getMainLooper()).post { onError(message) }
@@ -153,7 +153,7 @@ object BackendAuthService {
             try {
                 val json = JSONObject().apply { put("idToken", idToken) }
                 val body = json.toString().toRequestBody("application/json".toMediaType())
-                val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+                val base = BackendEndpointResolver.apiBaseUrl(context)
                 val url = "$base/api/auth/signin"
                 val request = Request.Builder()
                     .url(url)
@@ -214,7 +214,7 @@ object BackendAuthService {
                     put("code", code)
                 }
                 val body = json.toString().toRequestBody("application/json".toMediaType())
-                val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+                val base = BackendEndpointResolver.apiBaseUrl(context)
                 val url = "$base/api/auth/verify-otp"
                 val request = Request.Builder()
                     .url(url)
@@ -269,7 +269,7 @@ object BackendAuthService {
                     put("password", password)
                 }
                 val body = json.toString().toRequestBody("application/json".toMediaType())
-                val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+                val base = BackendEndpointResolver.apiBaseUrl(context)
                 val url = "$base/api/auth/login"
                 val request = Request.Builder()
                     .url(url)
@@ -311,7 +311,7 @@ object BackendAuthService {
                 e.printStackTrace()
                 val message = when {
                     e is java.net.SocketTimeoutException || e is java.net.ConnectException ->
-                        "Can't reach server. Check API_BASE_URL in local.properties."
+                        "Can't reach server. The app now auto-discovers backend IP on your hotspot, but verify backend is running on port 5000."
                     else -> "Network error: ${e.message}"
                 }
                 android.os.Handler(android.os.Looper.getMainLooper()).post { onError(message) }

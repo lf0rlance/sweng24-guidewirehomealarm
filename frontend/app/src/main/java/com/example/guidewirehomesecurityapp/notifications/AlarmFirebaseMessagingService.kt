@@ -7,8 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.example.guidewirehomesecurityapp.BuildConfig
 import com.example.guidewirehomesecurityapp.MainActivity
+import com.example.guidewirehomesecurityapp.api.BackendEndpointResolver
 import com.example.guidewirehomesecurityapp.auth.BackendAuthService
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -108,7 +108,7 @@ class AlarmFirebaseMessagingService : FirebaseMessagingService() {
                         android.util.Log.w(TAG, "FCM register: no JWT (not logged in?), skipping")
                         return@thread
                     }
-                    val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+                    val base = BackendEndpointResolver.apiBaseUrl(appContext)
                     val url = "$base/api/notifications/register"
                     val body = JSONObject().apply { put("token", token) }.toString()
                         .toRequestBody("application/json".toMediaType())

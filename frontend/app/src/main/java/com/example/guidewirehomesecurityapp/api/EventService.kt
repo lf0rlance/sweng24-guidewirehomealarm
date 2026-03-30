@@ -1,7 +1,6 @@
 package com.example.guidewirehomesecurityapp.api
 
 import android.content.Context
-import com.example.guidewirehomesecurityapp.BuildConfig
 import com.example.guidewirehomesecurityapp.auth.BackendAuthService
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -23,14 +22,14 @@ object EventService {
         .build()
 
     /** Server base URL without /api (e.g. http://10.0.2.2:5000) */
-    fun serverBaseUrl(): String =
-        BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+    fun serverBaseUrl(context: Context): String =
+        BackendEndpointResolver.apiBaseUrl(context)
 
     /**
      * GET /events — returns events for the authenticated user's alarm system only.
      * Requires JWT (from login). Call from a background thread (e.g. Dispatchers.IO).
      */
-    fun getEvents(context: Context, serverBaseUrl: String = serverBaseUrl()): List<SensorEvent> {
+    fun getEvents(context: Context, serverBaseUrl: String = serverBaseUrl(context)): List<SensorEvent> {
         val url = "$serverBaseUrl/events"
         val token = BackendAuthService.getToken(context)
         val requestBuilder = Request.Builder().url(url).get()
@@ -72,7 +71,7 @@ object EventService {
      * POST /api/pair — assign the logged-in user to an unpaired alarm home using the system password (min 8 chars).
      * Must succeed before "Link ESP32" if the account was created via Google and has no home yet.
      */
-    fun pairWithHome(context: Context, systemPassword: String, serverBaseUrl: String = serverBaseUrl()): Boolean {
+    fun pairWithHome(context: Context, systemPassword: String, serverBaseUrl: String = serverBaseUrl(context)): Boolean {
         val url = "$serverBaseUrl/api/pair"
         val token = BackendAuthService.getToken(context)
         if (token.isNullOrBlank()) return false
@@ -92,7 +91,7 @@ object EventService {
         }
     }
 
-    fun connectDevice(context: Context, microcontrollerId: Int = 1, serverBaseUrl: String = serverBaseUrl()): Boolean {
+    fun connectDevice(context: Context, microcontrollerId: Int = 1, serverBaseUrl: String = serverBaseUrl(context)): Boolean {
         val url = "$serverBaseUrl/api/device/connect"
         val token = BackendAuthService.getToken(context)
         if (token.isNullOrBlank()) return false
@@ -113,7 +112,7 @@ object EventService {
     }
 
     /** Admin-configured names: index 0 = first reed (D4), 1 = second (D14). */
-    fun getSensorLabels(context: Context, serverBaseUrl: String = serverBaseUrl()): List<String> {
+    fun getSensorLabels(context: Context, serverBaseUrl: String = serverBaseUrl(context)): List<String> {
         val url = "$serverBaseUrl/api/sensor-labels"
         val token = BackendAuthService.getToken(context) ?: return emptyList()
         val request = Request.Builder()
@@ -136,7 +135,7 @@ object EventService {
     data class PowerSample(val deviceId: String, val timestamp: Double, val valueMa: Double)
 
     /** Recent power samples (mA) for the Eco tab chart. */
-    fun getPowerRecent(context: Context, serverBaseUrl: String = serverBaseUrl()): List<PowerSample> {
+    fun getPowerRecent(context: Context, serverBaseUrl: String = serverBaseUrl(context)): List<PowerSample> {
         val url = "$serverBaseUrl/api/power/recent"
         val token = BackendAuthService.getToken(context) ?: return emptyList()
         val request = Request.Builder()
