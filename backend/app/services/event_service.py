@@ -43,15 +43,17 @@ def is_duplicate(device_id: str, count: int) -> bool:
 
 def is_sequence_valid(device_id: str, count: int) -> bool:
     """Return True if count is the expected next value for device_id."""
-    if device_id not in _last_counts:
+    previous = _last_counts.get(device_id)
+    if previous is None:
         _last_counts[device_id] = count
         return True
 
-    if count == _last_counts[device_id] + 1:
-        _last_counts[device_id] = count
-        return True
+    expected = previous + 1
+    if count != expected:
+        return False
 
-    return False
+    _last_counts[device_id] = count
+    return True
 
 
 def get_alarm_system_id_for_user(user_id: int) -> Optional[int]:

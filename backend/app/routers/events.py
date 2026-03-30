@@ -83,13 +83,21 @@ def receive_event(
 
 @router.get("/events")
 def get_events(current_user: AuthenticatedUser = Depends(get_current_user)):
-    alarm_system_id = get_alarm_system_id_for_user(current_user.user_id)
+    try:
+        alarm_system_id = get_alarm_system_id_for_user(current_user.user_id)
+    except Exception as e:
+        print(f"Get system id error: {e}")
+        return []
 
     if alarm_system_id is None:
         return []
 
-    events = get_events_for_system(alarm_system_id, armed_only=True)
-    return events
+    try:
+        events = get_events_for_system(alarm_system_id, armed_only=True)
+        return events
+    except Exception as e:
+        print(f"Get events error: {e}")
+        return []
 
 
 @router.get("/events/stream")
