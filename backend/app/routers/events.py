@@ -131,14 +131,15 @@ def receive_event_device(
 
 @router.get("/events")
 def get_events(current_user: AuthenticatedUser = Depends(get_current_user)):
+    alarm_system_id = get_alarm_system_id_for_user(current_user.user_id)
+
+    # No linked home/system means no history; avoid extra role lookup work.
+    if alarm_system_id is None:
+        return []
+
     hr = get_home_role(current_user.user_id)
     if not can_view_history(hr):
         raise HTTPException(status_code=403, detail="Sensor history is not available for your role")
-
-    alarm_system_id = get_alarm_system_id_for_user(current_user.user_id)
-
-    if alarm_system_id is None:
-        return []
 
     events = get_events_for_system(
         alarm_system_id,
