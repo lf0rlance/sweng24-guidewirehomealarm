@@ -2,7 +2,7 @@ package com.example.guidewirehomesecurityapp.auth
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.example.guidewirehomesecurityapp.BuildConfig
+import com.example.guidewirehomesecurityapp.api.BackendEndpointResolver
 import kotlin.concurrent.thread
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -14,18 +14,26 @@ private const val PREFS_NAME = "auth_prefs"
 private const val KEY_JWT = "jwt"
 private const val KEY_ROLE = "role"
 private const val KEY_USERNAME = "username"
+private const val KEY_HOME_ROLE = "home_role"
 
 object BackendAuthService {
 
     private fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /** Persist JWT, role, and optional username after successful sign-in/sign-up. */
-    fun saveToken(context: Context, token: String, role: String? = null, username: String? = null) {
+    /** Persist JWT, role, optional username, and per-home role (owner/spouse/child/trusted). */
+    fun saveToken(
+        context: Context,
+        token: String,
+        role: String? = null,
+        username: String? = null,
+        homeRole: String? = null
+    ) {
         prefs(context).edit()
             .putString(KEY_JWT, token)
             .putString(KEY_ROLE, role ?: "user")
             .putString(KEY_USERNAME, username ?: "")
+            .putString(KEY_HOME_ROLE, homeRole ?: "")
             .apply()
     }
 
@@ -41,10 +49,22 @@ object BackendAuthService {
     fun getUsername(context: Context): String? =
         prefs(context).getString(KEY_USERNAME, null)?.takeIf { it.isNotBlank() }
 
+    /** Per-home role: owner, spouse, child, trusted — empty if not set. */
+    fun getHomeRole(context: Context): String? =
+        prefs(context).getString(KEY_HOME_ROLE, null)?.takeIf { it.isNotBlank() }
+
     /** Clear stored JWT, role, and username (e.g. on logout). */
     fun clearToken(context: Context) {
-        prefs(context).edit().remove(KEY_JWT).remove(KEY_ROLE).remove(KEY_USERNAME).apply()
+        prefs(context).edit()
+            .remove(KEY_JWT)
+            .remove(KEY_ROLE)
+            .remove(KEY_USERNAME)
+            .remove(KEY_HOME_ROLE)
+            .apply()
     }
+
+    private fun homeRoleFromUserJson(user: JSONObject?): String? =
+        user?.optString("home_role", "")?.takeIf { it.isNotBlank() }
 
     private fun request(
         context: Context,
@@ -57,7 +77,7 @@ object BackendAuthService {
             try {
                 val json = JSONObject().apply { put("idToken", idToken) }
                 val body = json.toString().toRequestBody("application/json".toMediaType())
-                val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+                val base = BackendEndpointResolver.apiBaseUrl(context)
                 val url = "$base/api$path"
                 android.util.Log.d("BackendAuth", "Request URL: $url")
                 val request = Request.Builder()
@@ -80,8 +100,9 @@ object BackendAuthService {
                             val user = obj.optJSONObject("user")
                             val role = user?.optString("role", "user")?.takeIf { it.isNotBlank() } ?: "user"
                             val username = user?.optString("name", "")?.takeIf { it.isNotBlank() }
+                            val homeRole = homeRoleFromUserJson(user)
                             if (jwt != null) {
-                                saveToken(context, jwt, role, username)
+                                saveToken(context, jwt, role, username, homeRole)
                             }
                         } catch (_: Exception) { /* ignore parse failure */ }
                     }
@@ -104,7 +125,7 @@ object BackendAuthService {
                 e.printStackTrace()
                 val message = when {
                     e is java.net.SocketTimeoutException || e is java.net.ConnectException ->
-                        "Can't reach server. If using a physical device, set API_BASE_URL in frontend/local.properties to your PC's IP (e.g. http://192.168.0.x:5000/api/). 10.0.2.2 only works on the emulator."
+                        "Can't reach server. The app now auto-discovers backend IP on your hotspot, but verify backend is running on port 5000 and reachable on this network."
                     else -> "Network error: ${e.message}"
                 }
                 android.os.Handler(android.os.Looper.getMainLooper()).post { onError(message) }
@@ -124,14 +145,15 @@ object BackendAuthService {
     fun signIn(
         context: Context,
         idToken: String,
-        onMfaRequired: (String) -> Unit,   // passes email to show OTP screen
+        onSuccess: () -> Unit,
+        onMfaRequired: (String) -> Unit,
         onError: (String) -> Unit
     ) {
         thread {
             try {
                 val json = JSONObject().apply { put("idToken", idToken) }
                 val body = json.toString().toRequestBody("application/json".toMediaType())
-                val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+                val base = BackendEndpointResolver.apiBaseUrl(context)
                 val url = "$base/api/auth/signin"
                 val request = Request.Builder()
                     .url(url)
@@ -146,9 +168,23 @@ object BackendAuthService {
                 val responseBody = response.body?.string()
                 if (response.isSuccessful) {
                     val obj = JSONObject(responseBody ?: "{}")
-                    val email = obj.optString("email", "")
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        onMfaRequired(email)
+                    val jwt = obj.optString("token", "").takeIf { it.isNotBlank() }
+                    if (jwt != null) {
+                        val user = obj.optJSONObject("user")
+                        val role = user?.optString("role", "user")?.takeIf { it.isNotBlank() } ?: "user"
+                        val username = user?.optString("name", "")?.takeIf { it.isNotBlank() }
+                        val homeRole = homeRoleFromUserJson(user)
+                        saveToken(context, jwt, role, username, homeRole)
+                        android.os.Handler(android.os.Looper.getMainLooper()).post { onSuccess() }
+                    } else if (obj.optBoolean("mfa_required", false)) {
+                        val email = obj.optString("email", "")
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            onMfaRequired(email)
+                        }
+                    } else {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            onError("Unexpected sign-in response")
+                        }
                     }
                 } else {
                     val errorMsg = try {
@@ -178,7 +214,7 @@ object BackendAuthService {
                     put("code", code)
                 }
                 val body = json.toString().toRequestBody("application/json".toMediaType())
-                val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+                val base = BackendEndpointResolver.apiBaseUrl(context)
                 val url = "$base/api/auth/verify-otp"
                 val request = Request.Builder()
                     .url(url)
@@ -195,7 +231,13 @@ object BackendAuthService {
                     responseBody?.let {
                         val obj = JSONObject(it)
                         val jwt = obj.optString("token", "").takeIf { t -> t.isNotBlank() }
-                        if (jwt != null) saveToken(context, jwt)
+                        if (jwt != null) {
+                            val user = obj.optJSONObject("user")
+                            val role = user?.optString("role", "user")?.takeIf { r -> r.isNotBlank() } ?: "user"
+                            val username = user?.optString("name", "")?.takeIf { n -> n.isNotBlank() }
+                            val homeRole = homeRoleFromUserJson(user)
+                            saveToken(context, jwt, role, username, homeRole)
+                        }
                     }
                     android.os.Handler(android.os.Looper.getMainLooper()).post { onSuccess() }
                 } else {
@@ -227,7 +269,7 @@ object BackendAuthService {
                     put("password", password)
                 }
                 val body = json.toString().toRequestBody("application/json".toMediaType())
-                val base = BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+                val base = BackendEndpointResolver.apiBaseUrl(context)
                 val url = "$base/api/auth/login"
                 val request = Request.Builder()
                     .url(url)
@@ -249,8 +291,9 @@ object BackendAuthService {
                             val user = obj.optJSONObject("user")
                             val role = user?.optString("role", "user")?.takeIf { it.isNotBlank() } ?: "user"
                             val username = user?.optString("name", "")?.takeIf { it.isNotBlank() }
+                            val homeRole = homeRoleFromUserJson(user)
                             if (jwt != null) {
-                                saveToken(context, jwt, role, username)
+                                saveToken(context, jwt, role, username, homeRole)
                             }
                         } catch (_: Exception) { }
                     }
@@ -268,7 +311,7 @@ object BackendAuthService {
                 e.printStackTrace()
                 val message = when {
                     e is java.net.SocketTimeoutException || e is java.net.ConnectException ->
-                        "Can't reach server. Check API_BASE_URL in local.properties."
+                        "Can't reach server. The app now auto-discovers backend IP on your hotspot, but verify backend is running on port 5000."
                     else -> "Network error: ${e.message}"
                 }
                 android.os.Handler(android.os.Looper.getMainLooper()).post { onError(message) }

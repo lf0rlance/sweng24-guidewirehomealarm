@@ -42,16 +42,21 @@ def is_duplicate(device_id: str, count: int) -> bool:
 
 
 def is_sequence_valid(device_id: str, count: int) -> bool:
-    """Return True if count is the expected next value for device_id."""
-    if device_id not in _last_counts:
+    """
+    Per-device monotonic tracking. Gaps are allowed: firmware may increment count before a successful
+    POST, so the server can see e.g. 5 then 7 while 6 never arrived.
+    Resets (count <= last) handle ESP reboots while the server still holds a high water mark in RAM.
+    """
+    last = _last_counts.get(device_id)
+    if last is None:
         _last_counts[device_id] = count
         return True
-
-    if count == _last_counts[device_id] + 1:
+    if count <= last:
         _last_counts[device_id] = count
         return True
-
-    return False
+    # count > last — forward progress (including last+1 or gaps)
+    _last_counts[device_id] = count
+    return True
 
 
 def get_alarm_system_id_for_user(user_id: int) -> Optional[int]:

@@ -25,34 +25,47 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.guidewirehomesecurityapp.api.AlarmService
+import com.example.guidewirehomesecurityapp.api.EventService
+import com.example.guidewirehomesecurityapp.api.SensorEvent
+import com.example.guidewirehomesecurityapp.api.deriveDoorOpenStates
 import com.example.guidewirehomesecurityapp.ui.components.ScreenTitleWithLogo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun ControlSecurityScreen(modifier: Modifier = Modifier) {
+fun ControlSecurityScreen(
+    modifier: Modifier = Modifier,
+    events: List<SensorEvent> = emptyList(),
+) {
     val context = LocalContext.current
     var systemArmed by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
+    var labels by remember { mutableStateOf<List<String>>(emptyList()) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         loading = true
         val armed = withContext(Dispatchers.IO) { AlarmService.getArmedStatus(context) }
         if (armed != null) systemArmed = armed
+        labels = withContext(Dispatchers.IO) { EventService.getSensorLabels(context) }
         loading = false
+        while (isActive) {
+            delay(5000)
+            labels = withContext(Dispatchers.IO) { EventService.getSensorLabels(context) }
+        }
     }
-    val sensors = remember {
-        listOf(
-            "Front door" to true,
-            "Back door" to false,
-            "Living room window" to true
-        )
-    }
+
+    val (open1, open2) = remember(events) { deriveDoorOpenStates(events) }
+    val name1 = labels.getOrNull(0)?.takeIf { it.isNotBlank() } ?: "Sensor 1"
+    val name2 = labels.getOrNull(1)?.takeIf { it.isNotBlank() } ?: "Sensor 2"
+
     val scrollState = rememberScrollState()
 
     Column(
@@ -66,7 +79,7 @@ fun ControlSecurityScreen(modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.headlineMedium
         )
         Text(
-            text = "Arm or disarm the alarm and check sensor status.",
+            text = "Arm or disarm the alarm and check sensor status. Names are set by your administrator.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
             modifier = Modifier.padding(bottom = 24.dp)
@@ -100,12 +113,28 @@ fun ControlSecurityScreen(modifier: Modifier = Modifier) {
                 Switch(
                     checked = systemArmed,
                     onCheckedChange = { newValue ->
-                        systemArmed = newValue
                         scope.launch {
-                            val ok = withContext(Dispatchers.IO) {
+                            val result = withContext(Dispatchers.IO) {
                                 AlarmService.setArmedStatus(context, newValue)
                             }
-                            if (!ok) systemArmed = !newValue
+                            when {
+                                !result.success -> {
+                                    Toast.makeText(
+                                        context,
+                                        "Could not update alarm",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                result.pendingDisarm -> {
+                                    systemArmed = true
+                                    Toast.makeText(
+                                        context,
+                                        "Disarm request sent — the homeowner must approve.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                result.armed != null -> systemArmed = result.armed
+                            }
                         }
                     },
                     enabled = !loading,
@@ -126,32 +155,52 @@ fun ControlSecurityScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(bottom = 12.dp)
         )
 
-        sensors.forEach { (name, isOpen) ->
+        listOf(
+            Triple(name1, open1, "First reed (GPIO 4)"),
+            Triple(name2, open2, "Second reed (GPIO 14)"),
+        ).forEach { (name, isOpen, hint) ->
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(16.dp)
                 ) {
-                    Text(
-                        text = name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = if (isOpen) "Open" else "Closed",
+                            text = name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = when (isOpen) {
+                                true -> "Open"
+                                false -> "Closed"
+                                null -> "—"
+                            },
                             style = MaterialTheme.typography.labelLarge,
-                            color = if (isOpen) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            color = when (isOpen) {
+                                true -> MaterialTheme.colorScheme.error
+                                false -> MaterialTheme.colorScheme.primary
+                                null -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                         )
                     }
+                    Text(
+                        text = hint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
             }
         }

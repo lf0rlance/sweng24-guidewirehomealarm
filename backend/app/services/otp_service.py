@@ -33,14 +33,22 @@ def verify_otp(email: str, code: str) -> bool:
 
 
 def send_otp_email(email: str, code: str):
+    sender = (settings.smtp_sender or "").strip()
+    password = (settings.smtp_password or "").strip()
+    if not sender or not password:
+        raise RuntimeError(
+            "SMTP is not configured: set SMTP_SENDER and SMTP_PASSWORD in backend .env "
+            "(Gmail: use an app password for the sender account)."
+        )
+
     msg = MIMEText(
         f"Your Guidewire Home Security verification code is: {code}\n\n"
         f"This code expires in 5 minutes. Do not share it with anyone."
     )
     msg["Subject"] = "Your Login Verification Code"
-    msg["From"] = settings.smtp_sender
+    msg["From"] = sender
     msg["To"] = email
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(settings.smtp_sender, settings.smtp_password)
-        server.sendmail(settings.smtp_sender, email, msg.as_string())
+        server.login(sender, password)
+        server.sendmail(sender, email, msg.as_string())

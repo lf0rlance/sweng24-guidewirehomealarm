@@ -1,7 +1,6 @@
 package com.example.guidewirehomesecurityapp.api
 
 import android.content.Context
-import com.example.guidewirehomesecurityapp.BuildConfig
 import com.example.guidewirehomesecurityapp.auth.BackendAuthService
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -21,7 +20,7 @@ object AdminService {
         .build()
 
     private fun baseUrl(context: Context): String =
-        BuildConfig.API_BASE_URL.trimEnd('/').removeSuffix("/api")
+        BackendEndpointResolver.apiBaseUrl(context)
 
     private fun authRequest(context: Context, path: String, method: String = "GET", body: String? = null): Request {
         val token = BackendAuthService.getToken(context) ?: ""
@@ -100,16 +99,24 @@ object AdminService {
         }
     }
 
-    data class AddHomeResult(val alarmSystemId: Int, val deviceId: String)
-    fun addHome(context: Context): AddHomeResult? = run {
-        val req = authRequest(context, "/homes", "POST")
+    data class AddHomeResult(val alarmSystemId: Int, val deviceId: String, val microcontrollerId: Int)
+    /**
+     * Create a home. If [microcontrollerId] is non-null, the DB uses that id (matches firmware `DEVICE_ID` = esp32_<n>).
+     * If null, the backend picks the next free id.
+     */
+    fun addHome(context: Context, microcontrollerId: Int? = null): AddHomeResult? = run {
+        val body = JSONObject().apply {
+            if (microcontrollerId != null) put("microcontroller_id", microcontrollerId)
+        }.toString()
+        val req = authRequest(context, "/homes", "POST", body)
         try {
             client.newCall(req).execute().use { response ->
                 if (!response.isSuccessful) return null
                 val o = JSONObject(response.body?.string() ?: "{}")
                 AddHomeResult(
                     alarmSystemId = o.optInt("alarm_system_id", 0),
-                    deviceId = o.optString("device_id", "")
+                    deviceId = o.optString("device_id", ""),
+                    microcontrollerId = o.optInt("microcontroller_id", 0)
                 )
             }
         } catch (_: Exception) {
@@ -140,7 +147,14 @@ object AdminService {
         }
     }
 
-    data class HomeUser(val id: Int, val username: String, val email: String, val phone: String, val role: String)
+    data class HomeUser(
+        val id: Int,
+        val username: String,
+        val email: String,
+        val phone: String,
+        val role: String,
+        val homeRole: String,
+    )
     fun listUsers(context: Context, alarmSystemId: Int): List<HomeUser> = run {
         val req = authRequest(context, "/homes/$alarmSystemId/users")
         try {
@@ -154,7 +168,8 @@ object AdminService {
                         username = o.optString("username", ""),
                         email = o.optString("email", ""),
                         phone = o.optString("phone", ""),
-                        role = o.optString("role", "user")
+                        role = o.optString("role", "user"),
+                        homeRole = o.optString("home_role", "owner"),
                     )
                 }
             }
@@ -163,12 +178,45 @@ object AdminService {
         }
     }
 
-    fun addUser(context: Context, alarmSystemId: Int, username: String, email: String, password: String, phone: String?): Boolean = run {
+    /**
+     * Link an existing account (e.g. Google signup) to this home. Optional [password] enables email login too.
+     */
+    fun linkExistingUser(
+        context: Context,
+        alarmSystemId: Int,
+        email: String,
+        password: String?,
+        homeRole: String? = null,
+    ): Boolean = run {
+        val body = JSONObject().apply {
+            put("email", email.trim().lowercase())
+            val p = password?.trim()
+            if (!p.isNullOrEmpty()) put("password", p)
+            if (!homeRole.isNullOrBlank()) put("home_role", homeRole.lowercase())
+        }.toString()
+        val req = authRequest(context, "/homes/$alarmSystemId/users/link", "POST", body)
+        try {
+            client.newCall(req).execute().use { it.isSuccessful }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun addUser(
+        context: Context,
+        alarmSystemId: Int,
+        username: String,
+        email: String,
+        password: String,
+        phone: String?,
+        homeRole: String? = null,
+    ): Boolean = run {
         val body = JSONObject().apply {
             put("username", username)
             put("email", email)
             put("password", password)
             put("phone", phone ?: "")
+            if (!homeRole.isNullOrBlank()) put("home_role", homeRole.lowercase())
         }.toString()
         val req = authRequest(context, "/homes/$alarmSystemId/users", "POST", body)
         try {
@@ -178,12 +226,22 @@ object AdminService {
         }
     }
 
-    fun updateUser(context: Context, alarmSystemId: Int, userId: Int, username: String?, email: String?, phone: String?, password: String?): Boolean = run {
+    fun updateUser(
+        context: Context,
+        alarmSystemId: Int,
+        userId: Int,
+        username: String?,
+        email: String?,
+        phone: String?,
+        password: String?,
+        homeRole: String? = null,
+    ): Boolean = run {
         val body = JSONObject().apply {
             if (username != null) put("username", username)
             if (email != null) put("email", email)
             if (phone != null) put("phone", phone)
             if (password != null) put("password", password)
+            if (homeRole != null) put("home_role", homeRole.lowercase())
         }.toString()
         val req = authRequest(context, "/homes/$alarmSystemId/users/$userId", "PUT", body)
         try {

@@ -92,8 +92,75 @@ def ensure_sensor_labels_and_device_last_seen():
                 pass
 
 
+def ensure_sensor_events_value_column():
+    """Add optional value column for power readings (mA). Idempotent."""
+    conn = None
+    try:
+        conn = connectToDB.connectToDB()
+        cur = conn.cursor()
+        cur.execute(
+            "ALTER TABLE sensor_events ADD COLUMN IF NOT EXISTS value DOUBLE PRECISION"
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"ensure_schema (sensor_events.value): {e}")
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def ensure_home_role_pending_disarm_fcm_user():
+    """home_role on users, pending_disarm table, fcm_tokens.user_id. Idempotent."""
+    conn = None
+    try:
+        conn = connectToDB.connectToDB()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            ALTER TABLE user_table ADD COLUMN IF NOT EXISTS home_role VARCHAR(20) DEFAULT 'owner'
+            """
+        )
+        cur.execute("ALTER TABLE user_table ALTER COLUMN home_role SET DEFAULT 'owner'")
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pending_disarm (
+                id TEXT PRIMARY KEY,
+                alarm_system_id INT NOT NULL REFERENCES alarm_system_table (alarm_system_id) ON DELETE CASCADE,
+                requested_by_user_id INT NOT NULL REFERENCES user_table (id) ON DELETE CASCADE,
+                created_at DOUBLE PRECISION NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending'
+            )
+            """
+        )
+        cur.execute(
+            "ALTER TABLE fcm_tokens ADD COLUMN IF NOT EXISTS user_id INT REFERENCES user_table (id) ON DELETE SET NULL"
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"ensure_schema (home_role/pending_disarm/fcm): {e}")
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def run_startup_migration():
     """Call at app startup to ensure DB has phone, role, admin tables, and alarm_system name."""
     ensure_user_table_phone_and_role()
     ensure_alarm_system_name()
     ensure_sensor_labels_and_device_last_seen()
+    ensure_sensor_events_value_column()
+    ensure_home_role_pending_disarm_fcm_user()

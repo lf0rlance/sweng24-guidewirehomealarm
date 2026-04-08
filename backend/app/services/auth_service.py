@@ -1,32 +1,99 @@
 #
+import time
 import jwt
-from datetime import datetime, timedelta, timezone
+from google.auth import exceptions as google_exceptions
 from google.auth.transport import requests as google_requests
-from google.oauth2 import id_token
+from google.oauth2 import id_token as google_id_token
 
 import bcrypt
 from app.config import settings
 from db.googleAuth import find_or_create_google_user, find_google_user_only, get_user_by_email_for_password_login
 from app.services.otp_service import generate_otp, send_otp_email, verify_otp
 
+_GOOGLE_ISSUERS = frozenset({"accounts.google.com", "https://accounts.google.com"})
+_GOOGLE_OAUTH2_CERTS_URL = "https://www.googleapis.com/oauth2/v1/certs"
+
+
+def _google_oauth_audiences() -> list[str]:
+    """OAuth client IDs allowed as ID token `aud` / `azp` (comma-separated in GOOGLE_CLIENT_ID)."""
+    raw = (settings.google_client_id or "").strip()
+    if not raw:
+        raise ValueError(
+            "Server GOOGLE_CLIENT_ID is missing. Set it in backend/.env (Web application client ID, "
+            "same as Android serverClientId; add Android OAuth client too, comma-separated, if needed)."
+        )
+    return [p.strip() for p in raw.split(",") if p.strip()]
+
+
+# Alias for any stale code or typos expecting this name without the leading underscore.
+google_oauth_audiences = _google_oauth_audiences
+
+
+def _token_aud_matches_allowed(claim_aud, allowed: list[str]) -> bool:
+    if claim_aud is None:
+        return False
+    allow = set(allowed)
+    if isinstance(claim_aud, str):
+        return claim_aud in allow
+    if isinstance(claim_aud, list):
+        return bool(set(claim_aud) & allow)
+    return False
+
+
+def _google_client_allowed(idinfo: dict, allowed: list[str]) -> bool:
+    if _token_aud_matches_allowed(idinfo.get("aud"), allowed):
+        return True
+    azp = idinfo.get("azp")
+    if isinstance(azp, str) and azp in set(allowed):
+        return True
+    return False
+
 
 def verify_google_token(id_token_str: str):
-    idinfo = id_token.verify_oauth2_token(
+    allowed = _google_oauth_audiences()
+    request = google_requests.Request()
+    idinfo = google_id_token.verify_token(
         id_token_str,
-        google_requests.Request(),
-        settings.google_client_id
+        request,
+        audience=None,
+        certs_url=_GOOGLE_OAUTH2_CERTS_URL,
     )
-    if idinfo["aud"] != settings.google_client_id:
-        raise ValueError("Invalid audience")
+    if idinfo.get("iss") not in _GOOGLE_ISSUERS:
+        raise google_exceptions.GoogleAuthError(
+            f"Wrong issuer: expected one of {_GOOGLE_ISSUERS!r}, got {idinfo.get('iss')!r}"
+        )
+    if not _google_client_allowed(idinfo, allowed):
+        raise ValueError(
+            f"Token aud={idinfo.get('aud')!r} azp={idinfo.get('azp')!r} not in GOOGLE_CLIENT_ID. Allowed: {allowed}"
+        )
     return idinfo
 
 
 def build_user_response(user: dict):
     role = user.get("role") or "user"
+    uid = user["id"]
+    now = int(time.time())
+    home_role = user.get("home_role")
+    if home_role is None:
+        try:
+            from db.home_roles import get_home_role
+
+            home_role = get_home_role(int(uid))
+        except Exception:
+            home_role = None
+    # Claims required by app.security.get_current_user (sub, iat, exp) for /api/pair, GET /events, etc.
     token = jwt.encode(
-        {"userId": user["id"], "email": user["email"], "role": role},
+        {
+            "userId": uid,
+            "sub": str(uid),
+            "email": user["email"],
+            "role": role,
+            "home_role": home_role or "",
+            "iat": now,
+            "exp": now + 7 * 24 * 3600,
+        },
         settings.jwt_secret,
-        algorithm="HS256"
+        algorithm="HS256",
     )
     return {
         "token": token,
@@ -36,7 +103,8 @@ def build_user_response(user: dict):
             "name": user["name"],
             "role": role,
             "phone": user.get("phone"),
-        }
+            "home_role": home_role,
+        },
     }
 
 

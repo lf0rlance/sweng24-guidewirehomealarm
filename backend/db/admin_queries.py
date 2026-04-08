@@ -137,18 +137,24 @@ def delete_home(alarm_system_id: int) -> tuple:
             pass
 
 
-def add_home() -> Optional[dict]:
-    """Create one home (alarm_system + microcontroller). Returns dict with alarm_system_id, device_id, etc."""
+def add_home(microcontroller_id: Optional[int] = None) -> Optional[dict]:
+    """
+    Create one home (alarm_system + microcontroller). Returns dict with alarm_system_id, device_id, etc.
+    Raises ValueError if microcontroller_id is invalid or already used.
+    """
     conn = connectToDB.connectToDB()
     try:
         cur = conn.cursor()
-        aid, mc_id, device_id = create_home_with_device(cur)
+        aid, mc_id, device_id = create_home_with_device(cur, microcontroller_id=microcontroller_id)
         conn.commit()
         return {
             "alarm_system_id": aid,
             "microcontroller_id": mc_id,
             "device_id": device_id,
         }
+    except ValueError:
+        conn.rollback()
+        raise
     except Exception as e:
         conn.rollback()
         print(f"add_home failed: {e}")
@@ -165,19 +171,51 @@ def list_users_for_home(alarm_system_id: int) -> List[dict]:
     conn = connectToDB.connectToDB()
     try:
         cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT id, username, email, COALESCE(phone, '') as phone, role
-            FROM user_table
-            WHERE alarm_system_id = %s
-            ORDER BY id
-            """,
-            (alarm_system_id,),
-        )
-        return [
-            {"id": r[0], "username": r[1], "email": r[2], "phone": r[3], "role": r[4]}
-            for r in cur.fetchall()
-        ]
+        try:
+            cur.execute(
+                """
+                SELECT id, username, email, COALESCE(phone, '') as phone, role,
+                       COALESCE(home_role, 'owner') as home_role
+                FROM user_table
+                WHERE alarm_system_id = %s
+                ORDER BY id
+                """,
+                (alarm_system_id,),
+            )
+            rows = cur.fetchall()
+            return [
+                {
+                    "id": r[0],
+                    "username": r[1],
+                    "email": r[2],
+                    "phone": r[3],
+                    "role": r[4],
+                    "home_role": str(r[5]).strip().lower() if len(r) > 5 and r[5] else "owner",
+                }
+                for r in rows
+            ]
+        except Exception:
+            conn.rollback()
+            cur.execute(
+                """
+                SELECT id, username, email, COALESCE(phone, '') as phone, role
+                FROM user_table
+                WHERE alarm_system_id = %s
+                ORDER BY id
+                """,
+                (alarm_system_id,),
+            )
+            return [
+                {
+                    "id": r[0],
+                    "username": r[1],
+                    "email": r[2],
+                    "phone": r[3],
+                    "role": r[4],
+                    "home_role": "owner",
+                }
+                for r in cur.fetchall()
+            ]
     finally:
         try:
             conn.close()

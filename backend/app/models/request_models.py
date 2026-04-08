@@ -47,6 +47,17 @@ class MfaRequiredResponse(BaseModel):
     email: str
 
 # Admin-only request bodies
+class AddHomeRequest(BaseModel):
+    """Optional fixed ESP / microcontroller id so DB matches firmware DEVICE_ID (e.g. esp32_2 → id 2)."""
+
+    microcontroller_id: int | None = Field(
+        default=None,
+        ge=1,
+        le=999_999,
+        description="If set, create this board id; must not already exist. Omit for next auto id.",
+    )
+
+
 class SetSensorLabelsRequest(BaseModel):
     labels: list[str]  # e.g. ["Front door", "Back door", "Living room window"]
 
@@ -56,6 +67,24 @@ class AddUserToHomeRequest(BaseModel):
     email: str
     password: str
     phone: str | None = None
+    home_role: str | None = Field(
+        default=None,
+        description="owner | spouse | child | trusted (first user in a home is always owner)",
+    )
+
+
+class LinkExistingUserToHomeRequest(BaseModel):
+    """Link an account that already exists (e.g. signed up with Google) to this home."""
+
+    email: str
+    password: str | None = Field(
+        default=None,
+        description="Optional. If set (min 8 chars), user can log in with email/password too.",
+    )
+    home_role: str | None = Field(
+        default=None,
+        description="owner | spouse | child | trusted (first user in home becomes owner)",
+    )
 
 
 class NotifyHomeownerRequest(BaseModel):
@@ -72,3 +101,4 @@ class UpdateUserRequest(BaseModel):
     email: str | None = None
     phone: str | None = None
     password: str | None = None
+    home_role: str | None = None

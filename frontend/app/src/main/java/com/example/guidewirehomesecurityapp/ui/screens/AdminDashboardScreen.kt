@@ -11,8 +11,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -33,7 +36,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,9 +58,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.example.guidewirehomesecurityapp.api.AdminHome
 import com.example.guidewirehomesecurityapp.api.AdminService
 import com.example.guidewirehomesecurityapp.auth.BackendAuthService
+import com.example.guidewirehomesecurityapp.ui.components.HomeRoleChipSelector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,6 +78,8 @@ fun AdminDashboardScreen(
     var offlineCount by remember { mutableStateOf(0) }
     var loading by remember { mutableStateOf(true) }
     var addHomeResult by remember { mutableStateOf<AdminService.AddHomeResult?>(null) }
+    var showAddHomeDialog by remember { mutableStateOf(false) }
+    var addHomeMcIdText by remember { mutableStateOf("") }
     var expandedHomeId by remember { mutableStateOf<Int?>(null) }
     var sensorDialogHome by remember { mutableStateOf<AdminHome?>(null) }
     var userDialogHome by remember { mutableStateOf<AdminHome?>(null) }
@@ -92,6 +101,64 @@ fun AdminDashboardScreen(
     }
 
     LaunchedEffect(Unit) { loadData() }
+
+    if (showAddHomeDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showAddHomeDialog = false
+                addHomeMcIdText = ""
+            },
+            title = { Text("Add home") },
+            text = {
+                Column {
+                    Text(
+                        "Optional: enter the ESP board number so it matches firmware DEVICE_ID " +
+                            "(e.g. 2 → esp32_2). Leave empty to use the next free id.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = addHomeMcIdText,
+                        onValueChange = { addHomeMcIdText = it.filter { c -> c.isDigit() } },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Microcontroller id (optional)") },
+                        placeholder = { Text("e.g. 2") }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        val id = addHomeMcIdText.trim().toIntOrNull()
+                        val result = withContext(Dispatchers.IO) {
+                            AdminService.addHome(context, microcontrollerId = id)
+                        }
+                        showAddHomeDialog = false
+                        addHomeMcIdText = ""
+                        addHomeResult = result
+                        if (result != null) {
+                            loadData()
+                            Toast.makeText(context, "Home added: ${result.deviceId}", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Failed — try another id or leave blank (id may already exist)",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }) { Text("Add") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAddHomeDialog = false
+                    addHomeMcIdText = ""
+                }) { Text("Cancel") }
+            }
+        )
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -118,18 +185,7 @@ fun AdminDashboardScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = {
-                    scope.launch {
-                        val result = withContext(Dispatchers.IO) { AdminService.addHome(context) }
-                        addHomeResult = result
-                        if (result != null) {
-                            loadData()
-                            Toast.makeText(context, "Home added: ${result.deviceId}", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Failed to add home", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                },
+                onClick = { showAddHomeDialog = true },
                 shape = RoundedCornerShape(16.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
@@ -201,8 +257,28 @@ fun AdminDashboardScreen(
             title = { Text("New home added") },
             text = {
                 Column {
-                    Text("Device ID for customer / ESP32: ${result.deviceId}")
-                    Text("Alarm system ID: ${result.alarmSystemId}", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "Use this device ID on the ESP32 firmware (DEVICE_ID / microcontroller id) so events go to this home.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Device ID: ${result.deviceId}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "Alarm system #${result.alarmSystemId}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Next: open this home → Users → Link existing account (e.g. their Google email) or Create new account. " +
+                            "The list shows “Last seen” when the ESP is online and sending events.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             confirmButton = { TextButton(onClick = { addHomeResult = null }) { Text("OK") } }
@@ -308,6 +384,30 @@ fun AdminDashboardScreen(
     }
 }
 
+/** One-line hint: whether the ESP32 for this home has been seen and matches firmware DEVICE_ID. */
+private fun espConnectionHint(home: AdminHome): String {
+    val id = home.deviceId.ifBlank {
+        if (home.microcontrollerId > 0) "esp32_${home.microcontrollerId}" else "—"
+    }
+    val last = home.lastSeen
+    if (last == null || last <= 0.0) {
+        return "ESP: set DEVICE_ID to $id in firmware (and backend URL/secret) — not seen yet."
+    }
+    val nowSec = System.currentTimeMillis() / 1000.0
+    val sec = (nowSec - last).toLong().coerceAtLeast(0)
+    val ago = when {
+        sec < 90 -> "${sec}s ago"
+        sec < 3600 -> "${sec / 60}m ago"
+        sec < 86400 -> "${sec / 3600}h ago"
+        else -> "${sec / 86400}d ago"
+    }
+    return if (home.offline) {
+        "ESP $id · Offline (last activity $ago)"
+    } else {
+        "ESP $id · Online (last seen $ago)"
+    }
+}
+
 @Composable
 private fun AdminHomeCard(
     home: AdminHome,
@@ -341,6 +441,11 @@ private fun AdminHomeCard(
                         text = "${home.deviceId} · Users: ${home.userCount} · Sensors: ${home.sensorLabels.size}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = espConnectionHint(home),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -421,31 +526,45 @@ private fun SensorLabelsDialog(
     onDismiss: () -> Unit,
     onSave: (List<String>) -> Unit
 ) {
-    var text by remember(home.alarmSystemId) {
-        mutableStateOf(home.sensorLabels.joinToString("\n"))
+    var name1 by remember(home.alarmSystemId) {
+        mutableStateOf(home.sensorLabels.getOrNull(0) ?: "")
+    }
+    var name2 by remember(home.alarmSystemId) {
+        mutableStateOf(home.sensorLabels.getOrNull(1) ?: "")
     }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Sensor names — ${home.name.ifBlank { home.deviceId }}") },
         text = {
-            Column {
-                Text("One name per line (e.g. Front door, Back window)", style = MaterialTheme.typography.bodySmall)
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    "These names appear for the homeowner on the Control tab. Sensor 1 = first reed (GPIO 4), sensor 2 = second reed (GPIO 14).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = name1,
+                    onValueChange = { name1 = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Sensor 1") },
+                    placeholder = { Text("e.g. Front door") }
+                )
                 Spacer(Modifier.height(8.dp))
-                BasicTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                        .padding(8.dp),
-                    textStyle = MaterialTheme.typography.bodyMedium
+                OutlinedTextField(
+                    value = name2,
+                    onValueChange = { name2 = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Sensor 2") },
+                    placeholder = { Text("e.g. Window, back door") }
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onSave(text.split("\n").map { it.trim() }.filter { it.isNotBlank() })
+                onSave(listOf(name1.trim(), name2.trim()))
             }) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
@@ -461,6 +580,7 @@ private fun UsersDialog(
     var users by remember(home.alarmSystemId) { mutableStateOf<List<AdminService.HomeUser>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var showAddForm by remember { mutableStateOf(false) }
+    var showLinkForm by remember { mutableStateOf(false) }
     var editUser by remember { mutableStateOf<AdminService.HomeUser?>(null) }
     var removeConfirmUser by remember { mutableStateOf<AdminService.HomeUser?>(null) }
     val context = LocalContext.current
@@ -471,36 +591,124 @@ private fun UsersDialog(
         loading = false
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Users — ${home.name.ifBlank { home.deviceId }}") },
-        text = {
-            Column {
-                if (loading) CircularProgressIndicator()
-                else {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            shadowElevation = 6.dp,
+        ) {
+            Column(
+                Modifier
+                    .widthIn(min = 320.dp, max = 520.dp)
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    "Users",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    home.name.ifBlank { home.deviceId },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(16.dp))
+                if (loading) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    Text(
+                        "Link someone who already has an account (e.g. signed in with Google). Create new is for a fresh email/password user.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
                     users.forEach { u ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(16.dp),
                         ) {
-                            Text("${u.username} (${u.email})", style = MaterialTheme.typography.bodyMedium)
-                            Row {
-                                IconButton(onClick = { editUser = u }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit")
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        u.username,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        u.email,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "Role: ${u.homeRole}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
                                 }
-                                IconButton(onClick = { removeConfirmUser = u }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Remove")
+                                Row {
+                                    IconButton(onClick = { editUser = u }) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Edit")
+                                    }
+                                    IconButton(onClick = { removeConfirmUser = u }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Remove")
+                                    }
                                 }
                             }
                         }
                     }
-                    if (showAddForm) {
-                        AddUserForm(
-                            onAdd = { username, email, password, phone ->
+                    HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                    when {
+                        showLinkForm -> LinkExistingUserForm(
+                            onLink = { email, password, homeRole ->
                                 scope.launch {
                                     val ok = withContext(Dispatchers.IO) {
-                                        AdminService.addUser(context, home.alarmSystemId, username, email, password, phone)
+                                        AdminService.linkExistingUser(context, home.alarmSystemId, email, password, homeRole)
+                                    }
+                                    if (ok) {
+                                        onUserAdded()
+                                        showLinkForm = false
+                                        users = withContext(Dispatchers.IO) {
+                                            AdminService.listUsers(context, home.alarmSystemId)
+                                        }
+                                        Toast.makeText(context, "Linked to this home", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "Failed — email must exist (user signed up once), not already on another home; password 8+ chars if set",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            },
+                            onCancel = { showLinkForm = false }
+                        )
+                        showAddForm -> AddUserForm(
+                            onAdd = { username, email, password, phone, homeRole ->
+                                scope.launch {
+                                    val ok = withContext(Dispatchers.IO) {
+                                        AdminService.addUser(context, home.alarmSystemId, username, email, password, phone, homeRole)
                                     }
                                     if (ok) {
                                         onUserAdded()
@@ -514,51 +722,138 @@ private fun UsersDialog(
                             },
                             onCancel = { showAddForm = false }
                         )
-                    } else {
-                        TextButton(onClick = { showAddForm = true }) { Text("Add user") }
+                        else -> {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                TextButton(
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        showLinkForm = true
+                                        showAddForm = false
+                                    }
+                                ) { Text("Link existing") }
+                                TextButton(
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        showAddForm = true
+                                        showLinkForm = false
+                                    }
+                                ) { Text("Create new") }
+                            }
+                        }
                     }
                 }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text("Close") }
+                }
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
-    )
+        }
+    }
 
     editUser?.let { u ->
         var username by remember(u.id) { mutableStateOf(u.username) }
         var email by remember(u.id) { mutableStateOf(u.email) }
         var phone by remember(u.id) { mutableStateOf(u.phone) }
         var password by remember(u.id) { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { editUser = null },
-            title = { Text("Edit user") },
-            text = {
-                Column {
-                    OutlinedTextField(value = username, onValueChange = { username = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Username") })
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(value = email, onValueChange = { email = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Email") })
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(value = phone, onValueChange = { phone = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Phone") })
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("New password (optional)") })
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        val ok = withContext(Dispatchers.IO) {
-                            AdminService.updateUser(context, home.alarmSystemId, u.id, username, email, phone, password.takeIf { it.isNotBlank() })
-                        }
-                        editUser = null
-                        if (ok) {
-                            users = withContext(Dispatchers.IO) { AdminService.listUsers(context, home.alarmSystemId) }
-                            onUserAdded()
-                            Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-                        }
+        var homeRoleEdit by remember(u.id) { mutableStateOf(u.homeRole) }
+        Dialog(onDismissRequest = { editUser = null }) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp,
+                shadowElevation = 6.dp,
+            ) {
+                Column(
+                    Modifier
+                        .widthIn(min = 300.dp, max = 440.dp)
+                        .padding(24.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        "Edit user",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        u.email,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+                    )
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = { username = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Username") }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Email") }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = phone,
+                        onValueChange = { phone = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Phone") }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("New password (optional)") }
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text("Home role", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(8.dp))
+                    HomeRoleChipSelector(
+                        selectedRole = homeRoleEdit,
+                        onRoleSelected = { homeRoleEdit = it }
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { editUser = null }) { Text("Cancel") }
+                        TextButton(onClick = {
+                            scope.launch {
+                                val ok = withContext(Dispatchers.IO) {
+                                    AdminService.updateUser(
+                                        context,
+                                        home.alarmSystemId,
+                                        u.id,
+                                        username,
+                                        email,
+                                        phone,
+                                        password.takeIf { it.isNotBlank() },
+                                        homeRoleEdit
+                                    )
+                                }
+                                editUser = null
+                                if (ok) {
+                                    users = withContext(Dispatchers.IO) { AdminService.listUsers(context, home.alarmSystemId) }
+                                    onUserAdded()
+                                    Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }) { Text("Save") }
                     }
-                }) { Text("Save") }
-            },
-            dismissButton = { TextButton(onClick = { editUser = null }) { Text("Cancel") } }
-        )
+                }
+            }
+        }
     }
 
     removeConfirmUser?.let { u ->
@@ -585,15 +880,72 @@ private fun UsersDialog(
 }
 
 @Composable
+private fun LinkExistingUserForm(
+    onLink: (email: String, password: String?, homeRole: String) -> Unit,
+    onCancel: () -> Unit
+) {
+    val context = LocalContext.current
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var homeRole by remember { mutableStateOf("spouse") }
+    Column {
+        Text(
+            "They must already exist in the app (e.g. “Create account” with Google). Optional password enables email login too. First user in an empty home becomes owner automatically.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Email") }
+        )
+        Spacer(Modifier.height(4.dp))
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Password (optional, 8+ chars)") }
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("Home role", style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(8.dp))
+        HomeRoleChipSelector(selectedRole = homeRole, onRoleSelected = { homeRole = it })
+        Row(Modifier.padding(top = 12.dp)) {
+            TextButton(onClick = {
+                if (email.isBlank()) return@TextButton
+                val p = password.takeIf { it.isNotBlank() }
+                if (p != null && p.length < 8) {
+                    Toast.makeText(context, "Password must be at least 8 characters", Toast.LENGTH_SHORT).show()
+                    return@TextButton
+                }
+                onLink(email.trim(), p, homeRole)
+            }) { Text("Link to this home") }
+            TextButton(onClick = onCancel) { Text("Cancel") }
+        }
+    }
+}
+
+@Composable
 private fun AddUserForm(
-    onAdd: (username: String, email: String, password: String, phone: String?) -> Unit,
+    onAdd: (username: String, email: String, password: String, phone: String?, homeRole: String) -> Unit,
     onCancel: () -> Unit
 ) {
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+    var homeRole by remember { mutableStateOf("spouse") }
     Column {
+        Text(
+            "First user added to an empty home is always the homeowner (owner).",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
@@ -625,8 +977,12 @@ private fun AddUserForm(
             singleLine = true,
             label = { Text("Phone (optional)") }
         )
-        Row {
-            TextButton(onClick = { onAdd(username, email, password, phone.takeIf { it.isNotBlank() }) }) { Text("Create") }
+        Spacer(Modifier.height(8.dp))
+        Text("Home role", style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(8.dp))
+        HomeRoleChipSelector(selectedRole = homeRole, onRoleSelected = { homeRole = it })
+        Row(Modifier.padding(top = 12.dp)) {
+            TextButton(onClick = { onAdd(username, email, password, phone.takeIf { it.isNotBlank() }, homeRole) }) { Text("Create") }
             TextButton(onClick = onCancel) { Text("Cancel") }
         }
     }

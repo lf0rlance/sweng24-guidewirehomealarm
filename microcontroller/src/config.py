@@ -6,9 +6,20 @@ AP_SSID = "ESP32_HomeAlarm"
 AP_PASSWORD = "Group24"  # Must be at least 8 characters
 
 # Station mode settings 
-WIFI_SSID = "INSERT WIFI SSID"
-WIFI_PASSWORD = "WORDPASS321"
+WIFI_SSID = "Pixel_2602"
+WIFI_PASSWORD = "00000000"
 
-# Backend configuration
-#Set URL to http:// (INSERT IP here):(INSERT PORT HERE)/api/events
-BACKEND_URL = "http://172.20.10.5:5000/api/events"
+# Backend: Pi on your LAN — same host/port as the app (Docker usually :8000).
+# Prefer mDNS if your Pi advertises it (e.g. sweng24homealarm.local); else use http://<PI_IP>:8000/...
+# Use /api/events/ingest with X-ESP32-Secret (see backend ESP32_INGEST_SECRET in .env).
+BACKEND_URL = "http://sweng24homealarm.local:8000/api/events/ingest"
+# Must match backend/.env ESP32_INGEST_SECRET (set a long random string on the Pi).
+ESP32_INGEST_SECRET = "whatever"
+
+# Unique per physical board. Must match microcontroller_id in the DB: esp32_001 -> id 1, esp32_002 -> id 2, etc.
+# Flash different config.py on each ESP32 (or edit this line before uploading).
+DEVICE_ID = "esp32_002"  # Second board; use esp32_001 when flashing the other ESP
+
+# Reed / magnetic sensors: GPIO number, pull-up, active HIGH when open (adjust if your wiring differs).
+REED1_PIN = 4   # D4 — first sensor
+REED2_PIN = 14  # D14 — second sensor (set to None to disable)

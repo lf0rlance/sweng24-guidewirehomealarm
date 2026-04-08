@@ -162,6 +162,11 @@ fun LoginScreen(
                                 BackendAuthService.signIn(
                                     context = context,
                                     idToken = idToken,
+                                    onSuccess = {
+                                        AlarmFirebaseMessagingService.registerTokenAfterLogin(context)
+                                        Toast.makeText(context, "Login successful", Toast.LENGTH_SHORT).show()
+                                        onLoginSuccess()
+                                    },
                                     onMfaRequired = { email -> onMfaRequired(email) },
                                     onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
                                 )

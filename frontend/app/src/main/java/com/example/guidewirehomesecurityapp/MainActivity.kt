@@ -35,7 +35,14 @@ class MainActivity : ComponentActivity() {
                     }
                     AppScreen.Login -> {
                         LoginScreen(
-                            onLoginSuccess = { currentScreen = AppScreen.Home },
+                            onLoginSuccess = {
+                                currentScreen =
+                                    if (BackendAuthService.getRole(this) == "admin") {
+                                        AppScreen.AdminDashboard
+                                    } else {
+                                        AppScreen.Home
+                                    }
+                            },
                             onMfaRequired = { email ->
                                 otpEmail = email
                                 currentScreen = AppScreen.Otp

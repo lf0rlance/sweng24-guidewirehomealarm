@@ -1,23 +1,64 @@
 package com.example.guidewirehomesecurityapp.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.guidewirehomesecurityapp.api.EventService
 import com.example.guidewirehomesecurityapp.ui.components.ScreenTitleWithLogo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
+import kotlin.math.max
 
+/**
+ * Live ESP power draw (INA219) with a simple scrolling chart. Polls `/api/power/recent`.
+ */
 @Composable
 fun SustainabilityScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var samples by remember { mutableStateOf<List<EventService.PowerSample>>(emptyList()) }
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            samples = withContext(Dispatchers.IO) {
+                EventService.getPowerRecent(context)
+            }
+            delay(2000)
+        }
+    }
+
+    val latest = samples.lastOrNull()
+    val maxMa = samples.maxOfOrNull { it.valueMa }?.takeIf { it > 0 } ?: 400.0
+    val palette = MaterialTheme.colorScheme
 
     Column(
         modifier = modifier
@@ -25,44 +66,67 @@ fun SustainabilityScreen(modifier: Modifier = Modifier) {
             .verticalScroll(scrollState)
     ) {
         ScreenTitleWithLogo(
-            title = "Eco",
+            title = "Energy",
             modifier = Modifier.padding(bottom = 8.dp),
             style = MaterialTheme.typography.headlineMedium
         )
         Text(
-            text = "Impact of using our lightweight ESP32-based system instead of heavier alternatives.",
+            text = "Live current draw from your ESP32 nodes (INA219). Updates every few seconds.",
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-            modifier = Modifier.padding(bottom = 24.dp)
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+            modifier = Modifier.padding(bottom = 20.dp)
         )
 
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-            shape = CardDefaults.elevatedShape
+            colors = CardDefaults.cardColors(
+                containerColor = palette.primaryContainer.copy(alpha = 0.55f)
+            ),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
                 Text(
-                    text = "Power saved",
+                    text = "Current draw",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = palette.onPrimaryContainer
                 )
-                Text(
-                    text = "~2.4 kWh",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-                Text(
-                    text = "Estimated vs typical 24/7 DVR-style system (per month)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                if (latest != null) {
+                    Text(
+                        text = "%.0f mA".format(latest.valueMa),
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.primary,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    Text(
+                        text = latest.deviceId,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.onPrimaryContainer.copy(alpha = 0.75f),
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Waiting for data…",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = palette.onPrimaryContainer.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    Text(
+                        text = "Power events need a few seconds after the ESP connects.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.onPrimaryContainer.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                    )
+                }
             }
         }
 
@@ -70,37 +134,86 @@ fun SustainabilityScreen(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-            shape = CardDefaults.elevatedShape
+            colors = CardDefaults.cardColors(containerColor = palette.surfaceVariant.copy(alpha = 0.9f)),
+            shape = RoundedCornerShape(20.dp)
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
+            Column(modifier = Modifier.padding(20.dp)) {
                 Text(
-                    text = "Carbon emissions reduced",
+                    text = "Recent activity (mA)",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                    fontWeight = FontWeight.SemiBold
                 )
-                Text(
-                    text = "~1.2 kg CO₂e",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-                Text(
-                    text = "Equivalent CO₂ avoided (per month, grid-dependent)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                Spacer(Modifier.height(12.dp))
+                if (samples.size >= 2) {
+                    PowerLineChart(
+                        samples = samples,
+                        maxMa = max(maxMa, 50.0),
+                        lineColor = palette.primary,
+                        fillBrush = Brush.verticalGradient(
+                            colors = listOf(
+                                palette.primary.copy(alpha = 0.35f),
+                                Color.Transparent
+                            )
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Chart needs a few power samples. Open the Control tab and ensure the alarm system is receiving events.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.onSurfaceVariant
+                    )
+                }
             }
         }
 
         Text(
-            text = "Our ESP32 sensors use a fraction of the power of traditional alarm panels and camera systems.",
+            text = "Lower idle current than traditional panels — your ESP32-based nodes report real usage here.",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
             modifier = Modifier.padding(top = 16.dp)
+        )
+    }
+}
+
+@Composable
+private fun PowerLineChart(
+    samples: List<EventService.PowerSample>,
+    maxMa: Double,
+    lineColor: Color,
+    fillBrush: Brush,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val pad = 8f
+        if (samples.size < 2) return@Canvas
+        val pts = samples.mapIndexed { i, s ->
+            val x = pad + (i / (samples.size - 1f).coerceAtLeast(1f)) * (w - 2 * pad)
+            val yNorm = (s.valueMa / maxMa).toFloat().coerceIn(0f, 1f)
+            val y = h - pad - yNorm * (h - 2 * pad)
+            Offset(x, y)
+        }
+        val fillPath = Path().apply {
+            moveTo(pts.first().x, h)
+            pts.forEach { lineTo(it.x, it.y) }
+            lineTo(pts.last().x, h)
+            close()
+        }
+        drawPath(fillPath, brush = fillBrush)
+        val linePath = Path().apply {
+            moveTo(pts.first().x, pts.first().y)
+            for (i in 1 until pts.size) {
+                lineTo(pts[i].x, pts[i].y)
+            }
+        }
+        drawPath(
+            linePath,
+            color = lineColor,
+            style = Stroke(width = 4f, cap = StrokeCap.Round)
         )
     }
 }

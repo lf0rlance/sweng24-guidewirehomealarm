@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.example.guidewirehomesecurityapp.api.EventService
 import com.example.guidewirehomesecurityapp.api.SensorEvent
+import com.example.guidewirehomesecurityapp.auth.BackendAuthService
 import com.example.guidewirehomesecurityapp.notifications.AlarmFirebaseMessagingService
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +46,7 @@ sealed class HomeTab(val title: String, val icon: androidx.compose.ui.graphics.v
     data object Settings : HomeTab("Settings", Icons.Filled.Settings)
 }
 
-private val homeTabs = listOf(
+private val homeTabsAll = listOf(
     HomeTab.Home,
     HomeTab.Control,
     HomeTab.History,
@@ -64,6 +65,16 @@ fun HomeScreen(
     var events by remember { mutableStateOf<List<SensorEvent>>(emptyList()) }
 
     val context = LocalContext.current
+    val homeRole = BackendAuthService.getHomeRole(context) ?: ""
+    val tabs = if (homeRole == "child" || homeRole == "trusted") {
+        listOf(HomeTab.Home, HomeTab.Control, HomeTab.Eco, HomeTab.Settings)
+    } else {
+        homeTabsAll
+    }
+
+    LaunchedEffect(tabs.size, homeRole) {
+        if (selectedIndex >= tabs.size) selectedIndex = 0
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -123,7 +134,7 @@ fun HomeScreen(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
             NavigationBar {
-                homeTabs.forEachIndexed { index, tab ->
+                tabs.forEachIndexed { index, tab ->
                     NavigationBarItem(
                         selected = selectedIndex == index,
                         onClick = { selectedIndex = index },
@@ -165,27 +176,29 @@ fun HomeScreen(
                 label = "tab_transition"
             ) { index ->
 
-                when (homeTabs[index]) {
+                when (tabs[index]) {
 
                     HomeTab.Home -> HomeDashboardScreen(
                         modifier = Modifier.padding(innerPadding),
                         recentEvents = events,
                         onNavigateToControl = {
-                            selectedIndex = homeTabs.indexOf(HomeTab.Control)
+                            selectedIndex = tabs.indexOf(HomeTab.Control).coerceAtLeast(0)
                         },
                         onNavigateToHistory = {
-                            selectedIndex = homeTabs.indexOf(HomeTab.History)
+                            val i = tabs.indexOf(HomeTab.History)
+                            selectedIndex = if (i >= 0) i else 0
                         },
                         onNavigateToSustainability = {
-                            selectedIndex = homeTabs.indexOf(HomeTab.Eco)
+                            selectedIndex = tabs.indexOf(HomeTab.Eco).coerceAtLeast(0)
                         },
                         onNavigateToSettings = {
-                            selectedIndex = homeTabs.indexOf(HomeTab.Settings)
+                            selectedIndex = tabs.indexOf(HomeTab.Settings).coerceAtLeast(0)
                         }
                     )
 
                     HomeTab.Control -> ControlSecurityScreen(
-                        modifier = Modifier.padding(innerPadding)
+                        modifier = Modifier.padding(innerPadding),
+                        events = events
                     )
 
                     HomeTab.History -> SensorHistoryScreen(

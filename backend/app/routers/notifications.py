@@ -40,5 +40,5 @@ def register_token(
     if alarm_system_id is None:
         raise HTTPException(status_code=400, detail="Could not create alarm system")
 
-    register_fcm_token(alarm_system_id, request.token)
+    register_fcm_token(alarm_system_id, request.token, user_id)
     return {"status": "ok", "message": "Token registered"}
